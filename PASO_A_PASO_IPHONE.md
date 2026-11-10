@@ -1,0 +1,91 @@
+# Reloj de Jornada en iPhone — paso a paso
+
+Son dos partes: **(A)** instalar la app en el iPhone (2 min) y **(B)** conectar tus correos de Workera
+con el «Puente» en tu cuenta de Google (5–10 min, mejor desde un computador).
+
+Tus datos quedan solo en tu iPhone y en tu propia cuenta de Google. Nadie más los ve.
+
+---
+
+## A. Instalar la app en el iPhone
+
+1. Abre **Safari** (tiene que ser Safari) y entra a:
+   **https://huber-cl.github.io/reloj-de-jornada/**
+2. Espera a que cargue (la primera vez tarda 20–40 segundos).
+3. Toca **Compartir** (el cuadrado con flecha hacia arriba, abajo al centro).
+4. Desliza hacia abajo → **Agregar a inicio** → **Agregar**.
+5. Cierra Safari y abre la app desde el **ícono nuevo** de tu pantalla de inicio.
+6. Toca **Comenzar**.
+
+Ya puedes usarla marcando con los botones de la pestaña **Hoy**. Para que tus marcas de Workera se
+carguen solas, sigue con la parte B.
+
+---
+
+## B. Conectar Workera con el Puente Google
+
+Hazlo con la cuenta de Google **donde te llegan los correos de Workera**. Es más fácil en un computador
+(si solo tienes el iPhone, mira el final).
+
+### B1. Crear tu Puente
+1. Entra a **https://script.google.com** → **Nuevo proyecto**.
+2. Arriba, donde dice «Proyecto sin título», ponle **Reloj de Jornada - Puente**.
+3. En la barra izquierda toca el **engranaje ⚙️ (Configuración del proyecto)** y marca
+   **«Mostrar el archivo de manifiesto "appsscript.json" en el editor»**.
+4. Vuelve al **Editor** (ícono `< >`).
+
+> Si te enviaron un **enlace a la plantilla del Puente**, en vez de los pasos 1 a 6: abre el enlace →
+> ícono **ⓘ Descripción general** → **Hacer una copia**, y sigue en **B2**.
+
+### B1 (cont.). Pegar el código
+5. Abre este enlace, selecciona todo el texto (**Ctrl + A**) y cópialo (**Ctrl + C**):
+   https://raw.githubusercontent.com/Huber-CL/reloj-de-jornada/main/tools/workera_gmail_bridge.gs
+   En el editor abre **Código.gs**, borra todo y pega (**Ctrl + V**).
+6. Haz lo mismo con este enlace, pegándolo en el archivo **appsscript.json** (borra lo que tenía):
+   https://raw.githubusercontent.com/Huber-CL/reloj-de-jornada/main/tools/appsscript.json
+   Guarda con **Ctrl + S**.
+
+### B2. Activarlo
+7. En la barra de arriba del código, en el menú de funciones elige **`setup`** y pulsa **▶ Ejecutar**.
+8. Google pide permisos:
+   - **Revisar permisos** → elige tu cuenta.
+   - Aparece **«Google no ha verificado esta aplicación»**: es normal, la app eres tú.
+     Toca **Configuración avanzada** → **Ir a Reloj de Jornada - Puente (no seguro)**.
+   - Marca **Seleccionar todos** (son 3: leer correo *solo lectura*, conectarse a un servicio externo,
+     ejecutarse cuando no estás) → **Continuar**.
+9. Abajo, en el **Registro de ejecución**, aparece:
+   - `✓ Puente listo. Correos de Workera en los últimos 30 días: N` (si N es 0, revisa que sea la
+     cuenta correcta)
+   - `CLAVE para la app (no la compartas): ……` → **cópiala**.
+
+### B3. Publicarlo
+10. Arriba a la derecha: **Implementar → Nueva implementación**.
+11. Junto a «Seleccionar tipo» toca el **engranaje** → **Aplicación web**.
+12. **Ejecutar como:** Yo · **Quién tiene acceso:** **Cualquier usuario** → **Implementar**.
+13. Copia la **URL de la aplicación web** (empieza con `https://script.google.com/macros/s/` y termina en `/exec`).
+
+### B4. Pegarlo en la app del iPhone
+14. Envíate la **URL** y la **clave** al iPhone (por ejemplo en un correo a ti mismo; bórralo después).
+15. En la app: pestaña **Ajustes** → **Conexión con Workera** → elige **Puente Google**.
+16. Pega la **URL** y la **clave**.
+17. Toca **Detectar**: debería aparecer tu RUT. Revisa que sea el tuyo.
+18. Toca **Probar y guardar** → debe decir **«Puente conectado (versión 1.0)»**.
+19. Ve a la pestaña **Periodo**: deberían aparecer tus días con sus horas.
+
+Desde ahora tus marcas se cargan solas cada vez que abres la app, y se guarda un respaldo en tu
+cuenta de Google (si cambias de teléfono: conecta el Puente y toca **Restaurar respaldo**).
+
+---
+
+## Si solo tienes el iPhone
+Se puede hacer la parte B en el iPhone, pero es más incómodo: en Safari abre script.google.com,
+toca **aA** en la barra de direcciones → **Solicitar sitio web de escritorio**, y sigue los mismos pasos
+(para copiar el código, mantén presionado el texto → **Seleccionar todo** → **Copiar**).
+
+## Problemas comunes
+- **«Clave inválida»**: copia de nuevo la clave del registro de `setup`, sin espacios.
+- **«no respondió JSON» o error 401/403**: la implementación debe ser *Aplicación web* con acceso
+  **Cualquier usuario**, y la URL debe ser la que termina en `/exec`.
+- **No encuentra correos**: el Puente tiene que estar en la cuenta de Google donde llegan los correos
+  de Workera.
+- **Se ve raro o no carga**: cierra la app (desliza hacia arriba) y ábrela de nuevo; necesita internet.

@@ -12,6 +12,8 @@ marca dos veces «Entrada» o dos veces «Salida».
 - **Workera**: con el **Puente Google** (`tools/workera_gmail_bridge.gs`), un Apps Script que cada
   persona copia en su propia cuenta de Google. En Android también puede usarse Gmail directo.
 
+Paso a paso para iPhone: [PASO_A_PASO_IPHONE.md](PASO_A_PASO_IPHONE.md).
+
 Cada persona guarda sus datos en su propio teléfono y en su propia cuenta de Google. No hay servidor
 central. Guía de instalación: [GUIA_AMIGOS.md](GUIA_AMIGOS.md).
 
