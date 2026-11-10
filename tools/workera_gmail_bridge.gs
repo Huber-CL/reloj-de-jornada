@@ -17,7 +17,7 @@
  * los correos y se hace un cálculo simple de la salida para el aviso en segundo plano.
  */
 
-var VERSION = '1.0';
+var VERSION = '1.1';
 var CONSULTA_WORKERA = 'from:workera.com';
 var CONSULTA_MARCAS = 'from:workera.com subject:(registros asistencia)';
 var MAX_CORREOS = 400;
@@ -117,9 +117,27 @@ function setup() {
   });
   ScriptApp.newTrigger('revisar').timeBased().everyMinutes(10).create();
   var n = Gmail.Users.Messages.list('me', { q: CONSULTA_WORKERA + ' newer_than:30d', maxResults: 100 }).messages;
-  Logger.log('✓ Puente listo. Correos de Workera en los últimos 30 días: ' + (n ? n.length : 0));
+  var total = n ? n.length : 0;
+  Logger.log('✓ Puente listo. Correos de Workera en los últimos 30 días: ' + total);
   Logger.log('CLAVE para la app (no la compartas): ' + props.getProperty('TOKEN'));
   Logger.log('Ahora: Implementar → Nueva implementación → Aplicación web (Ejecutar como: Yo · Acceso: Cualquier usuario) y copia la URL.');
+  enviarClavePorCorreo_(props.getProperty('TOKEN'), total);
+}
+
+/** Envía la clave a tu propio correo: en el iPhone es más fácil copiarla desde Mail que desde el registro. */
+function enviarClavePorCorreo_(token, total) {
+  try {
+    var yo = Gmail.Users.getProfile('me').emailAddress;   // usa el permiso de Gmail que ya existe
+    MailApp.sendEmail(yo, 'Reloj de Jornada: clave de tu Puente',
+      'Tu Puente quedó listo (encontró ' + total + ' correos de Workera de los últimos 30 días).\n\n' +
+      'CLAVE (cópiala en la app, en Ajustes → Conexión con Workera → Puente Google):\n\n' + token + '\n\n' +
+      'Siguiente paso en script.google.com: Implementar → Nueva implementación → Aplicación web\n' +
+      '(Ejecutar como: Yo · Quién tiene acceso: Cualquier usuario) → Implementar → Copiar la URL (/exec).\n\n' +
+      'No reenvíes este correo: quien tenga la clave y la URL puede leer tus marcas. Bórralo cuando termines.');
+    Logger.log('✓ Te envié la clave a ' + yo);
+  } catch (err) {
+    Logger.log('No se pudo enviar la clave por correo (' + err + '). Cópiala desde este registro.');
+  }
 }
 
 /** Genera una clave nueva (la anterior deja de funcionar). */

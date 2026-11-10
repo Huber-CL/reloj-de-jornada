@@ -51,12 +51,14 @@ Hazlo con la cuenta de Google **donde te llegan los correos de Workera**. Es má
    - **Revisar permisos** → elige tu cuenta.
    - Aparece **«Google no ha verificado esta aplicación»**: es normal, la app eres tú.
      Toca **Configuración avanzada** → **Ir a Reloj de Jornada - Puente (no seguro)**.
-   - Marca **Seleccionar todos** (son 3: leer correo *solo lectura*, conectarse a un servicio externo,
-     ejecutarse cuando no estás) → **Continuar**.
+   - Marca **Seleccionar todos** (leer correo *solo lectura*, conectarse a un servicio externo,
+     ejecutarse cuando no estás y enviarte un correo **a ti mismo** con la clave) → **Continuar**.
 9. Abajo, en el **Registro de ejecución**, aparece:
    - `✓ Puente listo. Correos de Workera en los últimos 30 días: N` (si N es 0, revisa que sea la
      cuenta correcta)
-   - `CLAVE para la app (no la compartas): ……` → **cópiala**.
+   - `CLAVE para la app (no la compartas): ……`
+   - Además te llega un correo **«Reloj de Jornada: clave de tu Puente»** con la clave: desde ahí es más
+     fácil copiarla en el iPhone.
 
 ### B3. Publicarlo
 10. Arriba a la derecha: **Implementar → Nueva implementación**.
@@ -82,7 +84,12 @@ Se puede hacer la parte B en el iPhone, pero es más incómodo: en Safari abre s
 toca **aA** en la barra de direcciones → **Solicitar sitio web de escritorio**, y sigue los mismos pasos
 (para copiar el código, mantén presionado el texto → **Seleccionar todo** → **Copiar**).
 
-**Si el iPhone no deja pegar en `appsscript.json`:** sáltate ese archivo (y el paso 3 del engranaje).
+**Si el iPhone no deja pegar el código** (le pasa a muchos): pide a quien te pasó la app el **enlace a
+la plantilla del Puente**. Ábrelo en Safari (con «Solicitar sitio web de escritorio») → ícono
+**ⓘ Descripción general** → **Hacer una copia**. Luego, en tu copia, sigue desde **B2** (`setup`): no hay
+que pegar nada, la clave te llega por correo y la URL se copia con el botón **Copiar** al implementar.
+
+**Si solo falla `appsscript.json`:** sáltate ese archivo (y el paso 3 del engranaje).
 En su lugar, en la barra izquierda del editor toca **Servicios ＋** → elige **Gmail API** → **Agregar**.
 Basta con haber pegado **Código.gs**. Al dar permisos, Google puede describir el acceso a Gmail de forma
 más amplia, pero el Puente solo lee tus correos de Workera.
