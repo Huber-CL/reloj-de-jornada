@@ -124,3 +124,24 @@ def test_config_de_aviso_y_salida_informada():
     assert (cfg["activo"], cfg["canal"], cfg["aviso_min"], cfg["dias"]) == ("1", "reloj-abc123", "7", "0,1,2,3,4")
     asyncio.run(p.informar_salida(VIE, 61200))
     assert falso.props["salida"]["salida_s"] == "61200"
+
+
+# =============================================================================== respaldo entre dispositivos
+@pytest.mark.parametrize("propio, remoto, dias, esperado", [
+    (None, None, 10, "subir"),                                              # primer respaldo
+    ("2026-11-10T12:00:00.000Z", "2026-11-10T12:00:00.000Z", 10, "subir"),  # el remoto es el mío
+    ("2026-11-10T12:00:00.000Z", "2026-11-10T15:00:00.000Z", 10, "conflicto"),  # otro dispositivo subió después
+    (None, "2026-11-10T15:00:00.000Z", 10, "conflicto"),                    # dispositivo nuevo con respaldo ajeno
+    ("2026-11-10T12:00:00.000Z", None, 0, "omitir"),                        # base vacía: nunca pisar
+])
+def test_decidir_respaldo_auto(propio, remoto, dias, esperado):
+    from services.puente import decidir_respaldo_auto
+    assert decidir_respaldo_auto(propio, remoto, dias) == esperado
+
+
+def test_contar_dias(tmp_path):
+    from core.calculator import Day
+    db = Database(tmp_path / "c.sqlite3")
+    assert db.contar_dias() == 0
+    db.save_day(Day(fecha=VIE, ingreso="07:00:00"))
+    assert db.contar_dias() == 1

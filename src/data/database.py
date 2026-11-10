@@ -171,6 +171,9 @@ class Database:
         lunes = f - timedelta(days=f.weekday())
         return self.days_between(lunes, lunes + timedelta(days=6))
 
+    def contar_dias(self) -> int:
+        return self._q("SELECT COUNT(*) AS n FROM days")[0]["n"]
+
     def borrar_periodo(self, desde, hasta) -> int:
         d, h = to_date(desde).isoformat(), to_date(hasta).isoformat()
         with self._lock, self._conn:

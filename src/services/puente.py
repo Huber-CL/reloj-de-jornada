@@ -90,6 +90,20 @@ def http_por_defecto() -> Http:
     return _http_pyodide if sys.platform == "emscripten" else _http_urllib
 
 
+def decidir_respaldo_auto(propio: Optional[str], remoto: Optional[str], dias_locales: int) -> str:
+    """Respaldo automático entre varios dispositivos de la misma persona (gana el último que sube):
+      "omitir"    → base local vacía: subirla borraría el respaldo bueno
+      "conflicto" → en la nube hay un respaldo más nuevo que el último que subió este dispositivo
+                    (lo subió otro): no se pisa; el usuario decide (Restaurar o Respaldar ahora)
+      "subir"     → normal
+    Las fechas son ISO 8601 en UTC (toISOString de Apps Script), comparables como texto."""
+    if dias_locales <= 0:
+        return "omitir"
+    if remoto and (not propio or remoto > propio):
+        return "conflicto"
+    return "subir"
+
+
 def _b64url_a_bytes(texto: str) -> bytes:
     return base64.urlsafe_b64decode(texto + "=" * (-len(texto) % 4))
 

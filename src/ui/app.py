@@ -24,7 +24,7 @@ from data.database import Database
 from services.auth import CredentialStore, Credenciales, MemoryBackend, elegir_backend
 from services.imap_client import ImapError
 from services.jornada_service import JornadaService
-from services.puente import PuenteConfig, PuenteError, PuenteGoogle
+from services.puente import PuenteConfig, PuenteError, PuenteGoogle, decidir_respaldo_auto
 from services.push_notifier import PushConfig, PushError, PushNotifier, generar_canal
 from services.sync import ResultadoSync, SyncService
 from ui import widgets as w
@@ -230,7 +230,11 @@ class RelojApp:
 
     async def sincronizar(self, silencioso: bool = False) -> Optional[ResultadoSync]:
         fuente = self.fuente()
-        if fuente == "ninguna" or self.sincronizando:
+        if fuente == "ninguna":
+            return None
+        if self.sincronizando:
+            if not silencioso:
+                w.snack(self.page, "Ya se está sincronizando, espera unos segundos…", w.AZUL)
             return None
         if not self.puede_sincronizar():
             if not silencioso:
@@ -281,7 +285,9 @@ class RelojApp:
                 else:
                     await b.delete(clave)
         self.puente_cfg = cfg
-        self._ultimo_sync_auto = 0.0
+        # Quien guarda sincroniza enseguida: marcarlo como reciente evita que el bucle lance
+        # una segunda sincronización en paralelo (la que daba «0 marcas nuevas»).
+        self._ultimo_sync_auto = asyncio.get_running_loop().time()
 
     async def enviar_config_puente(self) -> None:
         """Pasa al puente lo que necesita para el aviso en segundo plano (canal ntfy, jornada, días)."""
@@ -294,20 +300,37 @@ class RelojApp:
             self.db.set_meta("puente_error", str(exc))
 
     async def respaldar(self, manual: bool = True) -> None:
+        """Sube el respaldo. El automático (máx. 1/h) no pisa un respaldo más nuevo de otro
+        dispositivo ni sube una base vacía; el manual («Respaldar ahora») siempre sube."""
         if not self.puente_cfg.listo:
             return
-        ultimo = float(self.db.get_meta("respaldo_ts") or 0)
-        if not manual and time.time() - ultimo < RESPALDO_CADA_S:
-            return
+        puente = PuenteGoogle(self.puente_cfg)
         try:
-            fecha = await PuenteGoogle(self.puente_cfg).subir_respaldo(self.db.exportar())
+            if not manual:
+                ultimo = float(self.db.get_meta("respaldo_ts") or 0)
+                if time.time() - ultimo < RESPALDO_CADA_S:
+                    return
+                remoto = (await puente.ping()).get("respaldo_fecha")
+                decision = decidir_respaldo_auto(self.db.get_meta("respaldo_fecha"), remoto, self.db.contar_dias())
+                if decision == "conflicto":
+                    self.db.set_meta("respaldo_conflicto", remoto)
+                if decision != "subir":
+                    return
+            fecha = await puente.subir_respaldo(self.db.exportar())
             self.db.set_meta("respaldo_ts", str(time.time()))
             self.db.set_meta("respaldo_fecha", fecha)
+            self.db.set_meta("respaldo_conflicto", None)
             if manual:
                 w.snack(self.page, "Respaldo guardado en tu cuenta de Google.", w.VERDE)
         except PuenteError as exc:
             if manual:
                 w.snack(self.page, str(exc), w.ROJO)
+        finally:
+            if manual:
+                self.refrescar()
+
+    async def fecha_respaldo_remoto(self) -> Optional[str]:
+        return (await PuenteGoogle(self.puente_cfg).ping()).get("respaldo_fecha")
 
     async def restaurar_respaldo(self) -> None:
         try:
@@ -319,6 +342,8 @@ class RelojApp:
             w.snack(self.page, "No hay respaldo en tu cuenta de Google todavía.", w.AMBAR)
             return
         self.db.importar(datos)
+        self.db.set_meta("respaldo_fecha", fecha)      # este dispositivo queda al día con el respaldo
+        self.db.set_meta("respaldo_conflicto", None)
         if ES_PYODIDE:
             self._programar_guardado()
         w.snack(self.page, f"Datos restaurados (respaldo del {str(fecha)[:10]}).", w.VERDE)

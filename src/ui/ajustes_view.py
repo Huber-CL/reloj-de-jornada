@@ -39,6 +39,8 @@ class AjustesView:
     def refrescar(self) -> None:
         if self.lista.controls:          # no pisar lo que el usuario está escribiendo
             self._estado_sync.value = self._texto_sync()
+            if getattr(self, "_lbl_respaldo", None) is not None:
+                self._lbl_respaldo.value, self._lbl_respaldo.color = self._texto_respaldo()
             return
         self.cfg = cfg = self.app.svc.cfg
         rcfg = ResolverConfig(**self.app.db.get_pref("resolver", {}))
@@ -127,7 +129,8 @@ class AjustesView:
         self.p_rut = ft.TextField(label="Tu RUT", value=cfg.rut, hint_text="12.345.678-9", dense=True, expand=True)
         self.p_estado = ft.Text("", size=12)
         error = self.app.db.get_meta("puente_error")
-        respaldo = self.app.db.get_meta("respaldo_fecha")
+        texto_resp, color_resp = self._texto_respaldo()
+        self._lbl_respaldo = ft.Text(texto_resp, size=12, color=color_resp)
         pasos = ("1. Abre el enlace del Puente que te compartieron y toca «Hacer una copia» (o pega el código de "
                  "tools/workera_gmail_bridge.gs en script.google.com).\n"
                  "2. Ejecuta «setup» y acepta los permisos (Google avisa «app no verificada»: es tuya → "
@@ -147,8 +150,7 @@ class AjustesView:
                                   on_click=lambda _: self.page.run_task(self.app.sincronizar)),
             ], wrap=True),
             self.p_estado, self._estado_sync,
-            ft.Text(f"Último respaldo: {respaldo[:16].replace('T', ' ')}" if respaldo else "Aún sin respaldo",
-                    size=12, color=ft.Colors.ON_SURFACE_VARIANT),
+            self._lbl_respaldo,
             ft.Row([
                 ft.TextButton("Respaldar ahora", icon=ft.Icons.CLOUD_UPLOAD,
                               on_click=lambda _: self.page.run_task(self.app.respaldar)),
@@ -209,9 +211,38 @@ class AjustesView:
             w.snack(self.page, "Hay un respaldo en tu cuenta de Google: puedes usar «Restaurar respaldo».", w.AZUL)
         await self.app.sincronizar()
 
-    def _restaurar(self, _):
+    @staticmethod
+    def _fecha_local(iso: str) -> str:
+        from datetime import datetime
+        try:
+            return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone().strftime("%d-%m-%Y %H:%M")
+        except ValueError:
+            return iso[:16].replace("T", " ")
+
+    def _texto_respaldo(self) -> tuple[str, str]:
+        db = self.app.db
+        conflicto, propio = db.get_meta("respaldo_conflicto"), db.get_meta("respaldo_fecha")
+        if conflicto:
+            return (f"Hay un respaldo más nuevo de otro dispositivo ({self._fecha_local(conflicto)}): no se reemplazó. "
+                    "Usa «Restaurar respaldo» para traerlo o «Respaldar ahora» para reemplazarlo con este.", w.AMBAR)
+        if propio:
+            return f"Último respaldo de este dispositivo: {self._fecha_local(propio)}", ft.Colors.ON_SURFACE_VARIANT
+        return "Aún sin respaldo", ft.Colors.ON_SURFACE_VARIANT
+
+    async def _restaurar(self, _):
+        from services.puente import PuenteError
+        try:
+            fecha = await self.app.fecha_respaldo_remoto()
+        except PuenteError as exc:
+            w.snack(self.page, str(exc), w.ROJO)
+            return
+        if not fecha:
+            w.snack(self.page, "No hay respaldo en tu cuenta de Google todavía.", w.AMBAR)
+            return
+        dias = self.app.db.contar_dias()
         w.confirmar(self.page, "Restaurar respaldo",
-                    "Se reemplazarán los datos de este teléfono por el último respaldo guardado en tu cuenta de Google.",
+                    f"Respaldo guardado el {self._fecha_local(fecha)}.\n\nSe reemplazarán los datos de este "
+                    f"dispositivo ({dias} día(s) registrados) por ese respaldo. No se puede deshacer.",
                     lambda: self.page.run_task(self.app.restaurar_respaldo), "Restaurar", peligro=True)
 
     def _controles_imap(self) -> list[ft.Control]:
