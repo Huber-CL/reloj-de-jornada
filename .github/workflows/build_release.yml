@@ -1,7 +1,9 @@
 # Compila en la nube (runners gratuitos de GitHub), sin instalar Flutter ni Android SDK localmente:
 #   - APK de Android firmado con la clave guardada en los secretos del repositorio
 #   - PWA (versión web instalable en iPhone/Android) publicada en GitHub Pages
-# Se ejecuta al subir una etiqueta vX.Y.Z (crea un Release con el APK) o a mano (Actions → Run workflow).
+# - Cada push a main: tests + PWA publicada en GitHub Pages (Pages solo acepta despliegues desde main).
+# - Cada etiqueta vX.Y.Z: tests + APK firmado + Release con el APK.
+# - A mano (Actions → Run workflow, sobre main): todo.
 #
 # Secretos (Settings → Secrets and variables → Actions):
 #   ANDROID_KEYSTORE_BASE64   keystore .jks codificado en base64
@@ -13,6 +15,7 @@ name: Build & Release
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -46,6 +49,7 @@ jobs:
 
   apk:
     needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -94,6 +98,7 @@ jobs:
 
   web:
     needs: test
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

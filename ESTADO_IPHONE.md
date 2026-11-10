@@ -41,8 +41,8 @@
 2. Subir el código. El workflow compila la PWA con la ruta correcta (`/<repo>/`) y la publica en
    `https://<usuario>.github.io/<repo>/`. **No** se sube `dist/` (está en `.gitignore`).
 3. En el repositorio: *Settings → Pages → Source: GitHub Actions*.
-4. Cada vez que se crea una versión (`vX.Y.Z`) o se ejecuta el workflow a mano: PWA actualizada en
-   Pages y APK en *Releases*.
+4. Cada cambio subido a `main` publica la PWA en Pages; cada versión `vX.Y.Z` compila el APK firmado y
+   lo deja en *Releases* (Pages no acepta publicar desde etiquetas).
 
 Para el enlace «Hacer una copia» del Puente: crear un proyecto **plantilla aparte** (NO el tuyo, que ya
 tiene tu clave en sus propiedades y su disparador) en script.google.com con
