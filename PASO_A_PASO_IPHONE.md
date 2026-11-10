@@ -82,6 +82,13 @@ Se puede hacer la parte B en el iPhone, pero es más incómodo: en Safari abre s
 toca **aA** en la barra de direcciones → **Solicitar sitio web de escritorio**, y sigue los mismos pasos
 (para copiar el código, mantén presionado el texto → **Seleccionar todo** → **Copiar**).
 
+**Si el iPhone no deja pegar en `appsscript.json`:** sáltate ese archivo (y el paso 3 del engranaje).
+En su lugar, en la barra izquierda del editor toca **Servicios ＋** → elige **Gmail API** → **Agregar**.
+Basta con haber pegado **Código.gs**. Al dar permisos, Google puede describir el acceso a Gmail de forma
+más amplia, pero el Puente solo lee tus correos de Workera.
+(Más fácil aún: pídele a quien te pasó la app el **enlace a la plantilla** y usa «Hacer una copia»: no
+hay que pegar nada.)
+
 ## Problemas comunes
 - **«Clave inválida»**: copia de nuevo la clave del registro de `setup`, sin espacios.
 - **«no respondió JSON» o error 401/403**: la implementación debe ser *Aplicación web* con acceso
