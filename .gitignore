@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+*.db
+*.sqlite3
+.env
+# Capturas con datos personales y claves de firma: nunca al repositorio
+*.jpeg
+*.jpg
+*.png
+!src/assets/*.png
+*.jks
+*.keystore
+dist/

@@ -1,0 +1,24 @@
+[project]
+name = "reloj-de-jornada"
+version = "0.1.0"
+description = "Reloj de Jornada: registro de jornada, horas extra y sincronización con Workera"
+requires-python = ">=3.11"
+dependencies = [
+    "flet==1.1.2",
+    "flet-secure-storage==1.1.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "keyring>=25"]   # keyring solo para desarrollo en escritorio
+
+[tool.flet]
+org = "cl.relojjornada"
+product = "Reloj de Jornada"
+company = "Reloj de Jornada"
+
+[tool.flet.app]
+path = "src"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

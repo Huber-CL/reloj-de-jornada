@@ -1,0 +1,137 @@
+# Compila en la nube (runners gratuitos de GitHub), sin instalar Flutter ni Android SDK localmente:
+#   - APK de Android firmado con la clave guardada en los secretos del repositorio
+#   - PWA (versión web instalable en iPhone/Android) publicada en GitHub Pages
+# Se ejecuta al subir una etiqueta vX.Y.Z (crea un Release con el APK) o a mano (Actions → Run workflow).
+#
+# Secretos (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64   keystore .jks codificado en base64
+#   ANDROID_KEYSTORE_PASSWORD contraseña del keystore
+#   ANDROID_KEY_PASSWORD      contraseña de la clave
+#   ANDROID_KEY_ALIAS         alias de la clave (ej. reloj)
+# Sin ellos el APK se firma con una clave de depuración temporal (sirve para probar, NO para repartir).
+name: Build & Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLET_VERSION: "1.1.2"
+  PYTHON_VERSION: "3.12"
+  PYTHONUTF8: "1"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install "flet==${FLET_VERSION}" "flet-secure-storage==${FLET_VERSION}" keyring pytest
+      - name: Tests
+        run: python -m pytest -q
+      - name: Cero credenciales en el código
+        run: python scripts/security_scan.py
+
+  apk:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: pip install "flet[all]==${FLET_VERSION}"
+      - name: Versión
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF_NAME#v}"; else V="0.0.${GITHUB_RUN_NUMBER}"; fi
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+      - name: Clave de firma
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          else
+            echo "::warning::Sin ANDROID_KEYSTORE_BASE64: el APK queda firmado con clave de depuración (no repartir)."
+          fi
+      - name: flet build apk
+        env:
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          FIRMA=()
+          if [ -f "$RUNNER_TEMP/release.jks" ]; then
+            FIRMA=(--android-signing-key-store "$RUNNER_TEMP/release.jks"
+                   --android-signing-key-store-password "$KS_PASS"
+                   --android-signing-key-password "$KEY_PASS"
+                   --android-signing-key-alias "$KEY_ALIAS")
+          fi
+          # versionCode creciente y por sobre los builds locales (1–99) para que Android acepte la actualización
+          flet build apk --yes --log-format github \
+            --build-version "$VERSION" --build-number "$((100 + GITHUB_RUN_NUMBER))" "${FIRMA[@]}"
+          mv build/apk/*.apk "build/apk/reloj-de-jornada-$VERSION.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: build/apk/*.apk
+
+  web:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install "flet[all]==${FLET_VERSION}"
+      - name: flet build web (PWA)
+        run: |
+          flet build web --yes --log-format github \
+            --base-url "/${{ github.event.repository.name }}/" \
+            --route-url-strategy hash \
+            --pwa-short-name "Reloj" \
+            --pwa-background-color "#121212" \
+            --pwa-theme-color "#00897B"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  pages:
+    needs: web
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: "*.apk"
+          generate_release_notes: true
