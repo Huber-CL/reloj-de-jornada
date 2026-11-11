@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import flet as ft
 
@@ -103,6 +103,8 @@ class PeriodoView:
         lista_dias = w.tarjeta(*filas or [ft.Text("Sin días en este periodo.")], titulo="Días", icono=ft.Icons.LIST)
 
         acciones = ft.Row([
+            ft.OutlinedButton("Vacaciones / licencia", icon=ft.Icons.BEACH_ACCESS,
+                              on_click=lambda _: self._dialogo_ausencia()),
             ft.OutlinedButton("Registrar un día anterior", icon=ft.Icons.EDIT_CALENDAR, on_click=self._registrar_anterior),
             ft.TextButton("Toca otra vez para borrar" if self._confirmando_borrado else "Borrar datos del periodo",
                           icon=ft.Icons.DELETE_FOREVER, on_click=self._borrar,
@@ -194,6 +196,73 @@ class PeriodoView:
             self.ref = calc._fecha_ajustada(anio, mes, self.ref.day)
         self._confirmando_borrado = False
         self.app.refrescar()
+
+    # ------------------------------------------------------------------ vacaciones / licencia en rango
+    def _dialogo_ausencia(self) -> None:
+        hoy = date.today()
+        estado = {"desde": hoy, "hasta": hoy}
+        tipo = ft.Dropdown(label="Marcar como", value="vacaciones", width=290, dense=True, options=[
+            *[ft.DropdownOption(key=k, text=w.TIPO_ETIQUETA[k]) for k in ("vacaciones", "licencia", "permiso", "feriado")],
+            ft.DropdownOption(key="quitar", text="Quitar marca (volver a laboral)"),
+        ])
+        b_desde = ft.OutlinedButton(icon=ft.Icons.EVENT)
+        b_hasta = ft.OutlinedButton(icon=ft.Icons.EVENT)
+        info = ft.Text("", size=12, color=ft.Colors.ON_SURFACE_VARIANT)
+        error = ft.Text("", size=12, color=w.ROJO)
+
+        def pintar():
+            b_desde.content = f"Desde: {w.fecha_corta(estado['desde'])}"
+            b_hasta.content = f"Hasta: {w.fecha_corta(estado['hasta'])}"
+            n = (estado["hasta"] - estado["desde"]).days + 1
+            info.value = (f"{n} día(s). Solo cambian los días laborales; los fines de semana y los días "
+                          "con marcas no se tocan." if n > 0 else "")
+            error.value = "" if n > 0 else "La fecha «Hasta» es anterior a «Desde»."
+            self.page.update()
+
+        def a_fecha(v):
+            if isinstance(v, datetime):
+                return (v.astimezone() if v.tzinfo else v).date()
+            return v
+
+        def elegir(campo):
+            def cambio(e):
+                if e.control.value:
+                    estado[campo] = a_fecha(e.control.value)
+                    if estado["hasta"] < estado["desde"]:
+                        estado["hasta" if campo == "desde" else "desde"] = estado[campo]
+                    pintar()
+            self.page.show_dialog(ft.DatePicker(value=estado[campo], first_date=date(hoy.year - 1, 1, 1),
+                                                last_date=date(hoy.year + 2, 12, 31), on_change=cambio))
+
+        b_desde.on_click = lambda _: elegir("desde")
+        b_hasta.on_click = lambda _: elegir("hasta")
+
+        def aplicar(_):
+            elegido = None if tipo.value == "quitar" else tipo.value
+            try:
+                r = self.app.svc.marcar_rango(estado["desde"], estado["hasta"], elegido)
+            except ValueError as exc:
+                error.value = str(exc)
+                self.page.update()
+                return
+            self.page.pop_dialog()
+            if elegido:
+                msg = f"Marqué {len(r['marcados'])} día(s) como {w.TIPO_ETIQUETA[elegido].lower()}."
+            else:
+                msg = f"Quité la marca de {len(r['marcados'])} día(s)."
+            if r["con_marcas"]:
+                msg += " No toqué " + ", ".join(w.fecha_corta(f) for f in r["con_marcas"]) + " porque tienen marcas."
+            w.snack(self.page, msg, w.VERDE)
+            self.app.refrescar()
+
+        self.page.show_dialog(ft.AlertDialog(
+            title=ft.Text("Vacaciones o licencia", size=20),
+            content=ft.Container(width=320, content=ft.Column([tipo, b_desde, b_hasta, info, error], tight=True,
+                                                              spacing=10, scroll=ft.ScrollMode.AUTO)),
+            actions=[ft.TextButton("Cancelar", on_click=lambda _: self.page.pop_dialog()),
+                     ft.FilledButton("Aplicar", on_click=aplicar)],
+        ))
+        pintar()
 
     def _registrar_anterior(self, _) -> None:
         fecha = self.p.sin_registro[0] if self.p.sin_registro else min(date.today(), self.p.hasta)

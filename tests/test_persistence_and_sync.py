@@ -183,3 +183,32 @@ class TestJornadaService:
         assert svc.dia(VIE).tipo == "cambio"
         svc.deshacer_cambio(sab)
         assert svc.dia(VIE).tipo is None and svc.dia(sab).cambioDe is None
+
+
+# =============================================================================== vacaciones / licencias en rango
+class TestMarcarRango:
+    def test_marca_solo_laborales_y_respeta_marcas(self, svc, db):
+        # lun 9 → dom 22 nov; el miércoles 11 ya tiene marcas
+        svc.marcar_ingreso(date(2026, 11, 11), 8 * H)
+        r = svc.marcar_rango(date(2026, 11, 9), date(2026, 11, 22), "vacaciones")
+        assert len(r["marcados"]) == 9                          # 10 laborales − 1 con marcas
+        assert r["con_marcas"] == [date(2026, 11, 11)]
+        assert svc.dia(date(2026, 11, 13)).tipo == "vacaciones"
+        assert svc.dia(date(2026, 11, 14)).tipo is None         # sábado intacto
+        assert svc.dia(date(2026, 11, 11)).tipo is None
+        # la semana de vacaciones completas (16–22) tiene meta 0
+        assert svc.resumen_semana(date(2026, 11, 18)).meta_s == 0
+
+    def test_quitar_marca(self, svc):
+        svc.marcar_rango(date(2026, 11, 16), date(2026, 11, 20), "licencia")
+        r = svc.marcar_rango(date(2026, 11, 16), date(2026, 11, 20), None)
+        assert len(r["marcados"]) == 5
+        assert svc.dia(date(2026, 11, 17)).tipo is None
+
+    def test_validaciones(self, svc):
+        with pytest.raises(ValueError):
+            svc.marcar_rango(date(2026, 11, 20), date(2026, 11, 16), "vacaciones")
+        with pytest.raises(ValueError):
+            svc.marcar_rango(date(2026, 1, 1), date(2026, 12, 31), "vacaciones")
+        with pytest.raises(ValueError):
+            svc.marcar_rango(date(2026, 11, 16), date(2026, 11, 20), "fiesta")

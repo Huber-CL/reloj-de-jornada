@@ -77,6 +77,13 @@ Si cambias de teléfono o borras la app: instálala, conecta el Puente y toca **
 Tu jornada (8 h + colación), días laborales, sueldo base (para estimar el pago de horas extra) y el
 tope semanal.
 
+## 6. Vacaciones, licencias y permisos
+En **Periodo → Vacaciones / licencia** eliges el tipo (vacaciones, licencia, permiso con goce o feriado) y las
+fechas **desde / hasta** (también futuras). La app marca de una vez los días laborales del rango: esos días no
+cuentan en la meta semanal ni generan faltantes. Los fines de semana y los días que ya tienen marcas no se
+tocan. Para deshacer, elige **Quitar marca** con las mismas fechas. Un día suelto también se cambia tocándolo
+en la lista de días (**Tipo de día**).
+
 ## Preguntas frecuentes
 - **«Clave inválida»**: copia de nuevo la clave del registro de `setup` (sin espacios al inicio o final).
 - **«El Puente respondió 401/403» o «no respondió JSON»**: la implementación debe ser *Aplicación web* con

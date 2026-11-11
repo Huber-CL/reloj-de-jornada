@@ -244,6 +244,45 @@ class JornadaService:
             self._guardar(day)
         return day
 
+    # ------------------------------------------------------------------ vacaciones / licencias
+    TIPOS_AUSENCIA = ("vacaciones", "licencia", "permiso", "feriado")
+    MAX_DIAS_RANGO = 92
+
+    def marcar_rango(self, desde: date, hasta: date, tipo: Optional[str]) -> dict:
+        """Marca de una vez los días laborales de un rango (también futuros).
+
+        `tipo` ∈ TIPOS_AUSENCIA, o None para quitar la marca (vuelven a ser laborales).
+        No toca fines de semana ni días libres por defecto, días con marcas de ingreso/salida
+        (se informan como omitidos) ni días de cambio de día."""
+        if tipo is not None and tipo not in self.TIPOS_AUSENCIA:
+            raise ValueError(f"Tipo inválido: {tipo!r}")
+        if hasta < desde:
+            raise ValueError("La fecha de término es anterior a la de inicio")
+        if (hasta - desde).days + 1 > self.MAX_DIAS_RANGO:
+            raise ValueError(f"El rango no puede superar {self.MAX_DIAS_RANGO} días")
+        cfg = self.cfg
+        dias = self.db.days_between(desde, hasta)
+        marcados: list[date] = []
+        con_marcas: list[date] = []
+        f = desde
+        while f <= hasta:
+            day = dias.get(f) or Day(fecha=f)
+            laborable = f.weekday() in cfg.dias_laborales
+            if tipo is None:
+                if day.tipo in self.TIPOS_AUSENCIA:
+                    day.tipo = None
+                    self._guardar(day)
+                    marcados.append(f)
+            elif laborable and not day.cambioDe and day.tipo != "cambio":
+                if day.ingreso or day.salida:
+                    con_marcas.append(f)
+                elif day.tipo != tipo:
+                    day.tipo = tipo
+                    self._guardar(day)
+                    marcados.append(f)
+            f += timedelta(days=1)
+        return {"marcados": marcados, "con_marcas": con_marcas}
+
     # ------------------------------------------------------------------ periodo
     def borrar_periodo(self, desde: date, hasta: date) -> int:
         return self.db.borrar_periodo(desde, hasta)

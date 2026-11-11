@@ -63,6 +63,8 @@ class RelojApp:
         p.dark_theme = ft.Theme(color_scheme_seed=ft.Colors.TEAL)
         p.theme_mode = ft.ThemeMode.SYSTEM
         p.padding = 0
+        es_cl = ft.Locale(language_code="es", country_code="CL")     # calendarios y selectores en español
+        p.locale_configuration = ft.LocaleConfiguration(supported_locales=[es_cl], current_locale=es_cl)
         if ES_PYODIDE:
             await self._restaurar_snapshot()
         if not self.modo_pwa:
