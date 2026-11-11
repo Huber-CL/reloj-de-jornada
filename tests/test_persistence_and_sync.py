@@ -212,3 +212,20 @@ class TestMarcarRango:
             svc.marcar_rango(date(2026, 1, 1), date(2026, 12, 31), "vacaciones")
         with pytest.raises(ValueError):
             svc.marcar_rango(date(2026, 11, 16), date(2026, 11, 20), "fiesta")
+
+
+class TestVacacionesServicio:
+    def test_no_descuenta_feriados_marcados(self, svc):
+        svc.marcar_rango(date(2026, 12, 8), date(2026, 12, 8), "feriado")
+        assert svc.contar_habiles(date(2026, 12, 7), date(2026, 12, 11)) == 4
+        r = svc.marcar_rango(date(2026, 12, 7), date(2026, 12, 11), "vacaciones")
+        assert len(r["marcados"]) == 4 and r["feriados"] == [date(2026, 12, 8)]
+        assert svc.dia(date(2026, 12, 8)).tipo == "feriado"
+
+    def test_saldo_y_guardado(self, svc):
+        svc.guardar_saldo_vacaciones(20, date(2026, 11, 1))
+        svc.marcar_rango(date(2026, 11, 16), date(2026, 11, 20), "vacaciones")
+        s = svc.saldo_vacaciones(hoy=date(2026, 11, 11))
+        assert s.configurado and s.programados == 5 and s.disponibles == 15
+        with pytest.raises(ValueError):
+            svc.guardar_saldo_vacaciones(-1, date(2026, 11, 1))

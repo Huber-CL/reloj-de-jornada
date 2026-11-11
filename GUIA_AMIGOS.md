@@ -78,11 +78,21 @@ Tu jornada (8 h + colación), días laborales, sueldo base (para estimar el pago
 tope semanal.
 
 ## 6. Vacaciones, licencias y permisos
-En **Periodo → Vacaciones / licencia** eliges el tipo (vacaciones, licencia, permiso con goce o feriado) y las
-fechas **desde / hasta** (también futuras). La app marca de una vez los días laborales del rango: esos días no
-cuentan en la meta semanal ni generan faltantes. Los fines de semana y los días que ya tienen marcas no se
-tocan. Para deshacer, elige **Quitar marca** con las mismas fechas. Un día suelto también se cambia tocándolo
-en la lista de días (**Tipo de día**).
+**Tu saldo de vacaciones.** Pregúntale a RR.HH. cuántos días hábiles de vacaciones tienes disponibles. En
+**Periodo → Mis vacaciones → Anotar mi saldo** escribe ese número y la fecha a la que corresponde. Desde ahí
+la app descuenta cada día que marques como vacaciones y muestra **Disponibles**, **Tomados** y
+**Programados** (los futuros), con la lista de tus tramos. Si RR.HH. te dio el saldo sin contar lo que vas
+ganando mes a mes, activa **Sumar lo que voy ganando** (15 días al año = 1,25 por mes; si tienes días
+progresivos, cambia los días por año). Cuando RR.HH. te dé un saldo nuevo, solo actualízalo con **Editar saldo**.
+
+**Marcar vacaciones.** En **Mis vacaciones → Tomar vacaciones** eliges las fechas **desde / hasta** (también
+futuras). Antes de aplicar, la app te dice cuántos días hábiles descuenta y cuántos te quedarían. Solo se
+descuentan los días laborales: los fines de semana, los días con marcas y los días ya marcados como
+**Feriado** no se tocan (si hay un feriado en medio, márcalo antes como Feriado).
+
+**Licencia, permiso o feriado.** Botón **Licencia / permiso / feriado**: funciona igual, pero no descuenta
+vacaciones. Esos días no cuentan en la meta semanal ni generan faltantes. Para deshacer, elige **Quitar marca**
+con las mismas fechas. Un día suelto también se cambia tocándolo en la lista de días (**Tipo de día**).
 
 ## Preguntas frecuentes
 - **«Clave inválida»**: copia de nuevo la clave del registro de `setup` (sin espacios al inicio o final).

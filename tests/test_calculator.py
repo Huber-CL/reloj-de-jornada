@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
+from core import calculator as calc
 
 from core.calculator import (
     H, Config, Day, aplicar_cambio_dia, aviso_cierre_semana, aviso_deuda, aviso_ultimo_dia,
@@ -210,3 +211,39 @@ class TestResumenSemana:
         r = resumen_semana(self.V, dias, CFG, hoy=self.V, ahora_s=10 * H)
         assert r.llevas_s == 33 * H and r.faltan_s == 7 * H and r.dias_restantes == 1
         assert r.salida_hoy_s == 17 * H                 # 08:00 + 8 h + colación
+
+
+class TestSaldoVacaciones:
+    def _dias(self, *fechas, tipo="vacaciones"):
+        return {f: Day(fecha=f, tipo=tipo) for f in fechas}
+
+    def test_sin_configurar_cuenta_igual(self):
+        r = calc.saldo_vacaciones(self._dias(date(2026, 11, 2)), Config(), date(2026, 11, 11))
+        assert not r.configurado and r.tomados == 1
+
+    def test_descuenta_tomados_y_programados(self):
+        cfg = Config(vac_saldo_dias=15, vac_saldo_fecha="2026-11-01")
+        dias = self._dias(date(2026, 10, 30),                                   # antes del corte: no cuenta
+                          date(2026, 11, 5), date(2026, 11, 6),                  # tomados
+                          date(2026, 11, 9), date(2026, 11, 10), date(2026, 11, 11),  # hoy cuenta como tomado
+                          date(2026, 12, 21), date(2026, 12, 22))                # programados
+        dias[date(2026, 11, 12)] = Day(fecha=date(2026, 11, 12), tipo="licencia")    # licencia no descuenta
+        r = calc.saldo_vacaciones(dias, cfg, date(2026, 11, 11))
+        assert (r.tomados, r.programados, r.disponibles) == (5, 2, 8)
+        # tramos: 21–22 dic (futuro), 5–11 nov (une el fin de semana), más recientes primero
+        assert [(t.desde, t.hasta, t.dias, t.futuro) for t in r.tramos] == [
+            (date(2026, 12, 21), date(2026, 12, 22), 2, True),
+            (date(2026, 11, 5), date(2026, 11, 11), 5, False),
+        ]
+
+    def test_feriado_une_tramo(self):
+        dias = self._dias(date(2026, 9, 17), date(2026, 9, 21))
+        dias.update(self._dias(date(2026, 9, 18), tipo="feriado"))
+        r = calc.saldo_vacaciones(dias, Config(vac_saldo_dias=10, vac_saldo_fecha="2026-09-01"), date(2026, 9, 30))
+        assert len(r.tramos) == 1 and r.tramos[0].dias == 2 and r.disponibles == 8
+
+    def test_acumula_por_mes(self):
+        cfg = Config(vac_saldo_dias=3, vac_saldo_fecha="2026-01-15", vac_acumular=True)
+        r = calc.saldo_vacaciones({}, cfg, date(2026, 11, 14))     # 9 meses completos
+        assert r.acumulado == 11.25 and r.disponibles == 14.25
+        assert calc.meses_completos(date(2026, 1, 15), date(2026, 11, 15)) == 10

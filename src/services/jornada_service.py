@@ -264,6 +264,7 @@ class JornadaService:
         dias = self.db.days_between(desde, hasta)
         marcados: list[date] = []
         con_marcas: list[date] = []
+        feriados: list[date] = []
         f = desde
         while f <= hasta:
             day = dias.get(f) or Day(fecha=f)
@@ -274,14 +275,45 @@ class JornadaService:
                     self._guardar(day)
                     marcados.append(f)
             elif laborable and not day.cambioDe and day.tipo != "cambio":
-                if day.ingreso or day.salida:
+                if day.tipo == "feriado" and tipo != "feriado":
+                    feriados.append(f)          # un feriado no se descuenta de las vacaciones
+                elif day.ingreso or day.salida:
                     con_marcas.append(f)
                 elif day.tipo != tipo:
                     day.tipo = tipo
                     self._guardar(day)
                     marcados.append(f)
             f += timedelta(days=1)
-        return {"marcados": marcados, "con_marcas": con_marcas}
+        return {"marcados": marcados, "con_marcas": con_marcas, "feriados": feriados}
+
+    def contar_habiles(self, desde: date, hasta: date) -> int:
+        """Días que descontaría marcar vacaciones en el rango (laborales, sin feriados, marcas ni cambios)."""
+        cfg = self.cfg
+        dias = self.db.days_between(desde, hasta)
+        n, f = 0, desde
+        while f <= hasta:
+            d = dias.get(f) or Day(fecha=f)
+            if (f.weekday() in cfg.dias_laborales and not d.cambioDe and d.tipo not in ("cambio", "feriado")
+                    and not (d.ingreso or d.salida) and d.tipo != "vacaciones"):
+                n += 1
+            f += timedelta(days=1)
+        return n
+
+    def saldo_vacaciones(self, hoy: Optional[date] = None) -> calc.SaldoVacaciones:
+        cfg = self.cfg
+        hoy = hoy or date.today()
+        desde = calc.to_date(cfg.vac_saldo_fecha) if cfg.vac_saldo_fecha else date(2000, 1, 1)
+        return calc.saldo_vacaciones(self.db.days_between(desde, date(9999, 12, 31)), cfg, hoy)
+
+    def guardar_saldo_vacaciones(self, dias: Optional[float], fecha: Optional[date],
+                                 acumular: bool = False, anuales: float = 15.0) -> None:
+        if dias is not None and not (0 <= dias <= 365):
+            raise ValueError("El saldo debe estar entre 0 y 365 días")
+        if not (0 < anuales <= 60):
+            raise ValueError("Los días por año deben estar entre 1 y 60")
+        cfg = replace(self.cfg, vac_saldo_dias=dias, vac_saldo_fecha=fecha.isoformat() if fecha else None,
+                      vac_acumular=bool(acumular), vac_dias_anuales=float(anuales))
+        self.guardar_config(cfg)
 
     # ------------------------------------------------------------------ periodo
     def borrar_periodo(self, desde: date, hasta: date) -> int:

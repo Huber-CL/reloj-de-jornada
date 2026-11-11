@@ -19,6 +19,25 @@ def pesos(n: float) -> str:
     return "$" + f"{round(n):,}".replace(",", ".")
 
 
+def num_dias(n: float) -> str:
+    """15 → «15», 8.25 → «8,25»."""
+    return str(int(n)) if float(n).is_integer() else f"{n:.2f}".rstrip("0").replace(".", ",")
+
+
+def rango_corto(a: date, b: date) -> str:
+    if a == b:
+        return w.fecha_corta(a)
+    if (a.year, a.month) == (b.year, b.month):
+        return f"{a.day}–{b.day} {w.MESES_CORTOS[b.month - 1]}"
+    return f"{a.day} {w.MESES_CORTOS[a.month - 1]} – {b.day} {w.MESES_CORTOS[b.month - 1]}"
+
+
+def a_fecha(v):
+    if isinstance(v, datetime):
+        return (v.astimezone() if v.tzinfo else v).date()
+    return v
+
+
 class PeriodoView:
     def __init__(self, app):
         self.app = app
@@ -103,17 +122,18 @@ class PeriodoView:
         lista_dias = w.tarjeta(*filas or [ft.Text("Sin días en este periodo.")], titulo="Días", icono=ft.Icons.LIST)
 
         acciones = ft.Row([
-            ft.OutlinedButton("Vacaciones / licencia", icon=ft.Icons.BEACH_ACCESS,
-                              on_click=lambda _: self._dialogo_ausencia()),
+            ft.OutlinedButton("Licencia / permiso / feriado", icon=ft.Icons.EVENT_BUSY,
+                              on_click=lambda _: self._dialogo_ausencia("licencia")),
             ft.OutlinedButton("Registrar un día anterior", icon=ft.Icons.EDIT_CALENDAR, on_click=self._registrar_anterior),
             ft.TextButton("Toca otra vez para borrar" if self._confirmando_borrado else "Borrar datos del periodo",
                           icon=ft.Icons.DELETE_FOREVER, on_click=self._borrar,
                           style=ft.ButtonStyle(color=w.ROJO)),
         ], wrap=True)
         if cfg.periodo_modo == "semana":
-            self.lista.controls = [cab, self._tarjeta_semana(), cobro, acciones, lista_dias]
+            self.lista.controls = [cab, self._tarjeta_semana(), self._tarjeta_vacaciones(), cobro, acciones,
+                                   lista_dias]
         else:
-            self.lista.controls = [cab, resumen, cobro, semanas, acciones, lista_dias]
+            self.lista.controls = [cab, resumen, cobro, semanas, self._tarjeta_vacaciones(), acciones, lista_dias]
 
     def _tarjeta_semana(self) -> ft.Control:
         r = self.app.svc.resumen_semana(self.ref, ahora_s=w.ahora_s())
@@ -154,6 +174,118 @@ class PeriodoView:
                 "Sin registro: " + ", ".join(w.fecha_corta(f) for f in r.sin_registro)
                 + ". Cuentan en la meta; tócalos abajo para registrarlos si trabajaste.", size=12, color=w.AMBAR))
         return w.tarjeta(*controles, titulo="Mi semana", icono=ft.Icons.DATE_RANGE)
+
+    def _tarjeta_vacaciones(self) -> ft.Control:
+        v = self.app.svc.saldo_vacaciones()
+        gris = ft.Colors.ON_SURFACE_VARIANT
+        controles: list[ft.Control] = []
+        if v.configurado:
+            controles.append(ft.Row([
+                w.dato("Disponibles", num_dias(v.disponibles), w.VERDE if v.disponibles > 0 else w.ROJO, grande=True),
+                w.dato("Tomados", num_dias(v.tomados)),
+                w.dato("Programados", num_dias(v.programados), w.AMBAR if v.programados else None),
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True))
+            origen = f"Saldo según RR.HH. al {w.fecha_corta(v.corte)}: {num_dias(v.saldo_inicial)} día(s)"
+            if v.acumulado:
+                origen += f" + {num_dias(v.acumulado)} ganados desde entonces"
+            controles.append(ft.Text(origen + ". Días hábiles.", size=12, color=gris))
+            if v.disponibles < 0:
+                controles.append(ft.Text("Tienes más días marcados que tu saldo: revisa con RR.HH.", size=13,
+                                         color=w.ROJO))
+        else:
+            controles.append(ft.Text("Pregúntale a RR.HH. cuántos días de vacaciones tienes disponibles y anótalos "
+                                     "aquí: la app los irá descontando cada vez que marques vacaciones.", size=13))
+            if v.tomados or v.programados:
+                controles.append(ft.Text(f"Ya tienes {v.tomados + v.programados} día(s) de vacaciones marcados.",
+                                         size=12, color=gris))
+        for t in v.tramos[:6]:
+            controles.append(ft.Row([
+                ft.Icon(ft.Icons.FLIGHT_TAKEOFF if t.futuro else ft.Icons.CHECK_CIRCLE_OUTLINE, size=18,
+                        color=w.AMBAR if t.futuro else gris),
+                ft.Column([
+                    ft.Text(rango_corto(t.desde, t.hasta), weight=ft.FontWeight.W_500),
+                    ft.Text(f"{t.dias} día{'s' if t.dias != 1 else ''} hábil{'es' if t.dias != 1 else ''}"
+                            + (" · programado" if t.futuro else " · tomado"), size=12, color=gris),
+                ], spacing=0, expand=True),
+            ]))
+        if len(v.tramos) > 6:
+            controles.append(ft.Text(f"… y {len(v.tramos) - 6} tramo(s) más antiguos.", size=12, color=gris))
+        controles.append(ft.Row([
+            ft.FilledTonalButton("Tomar vacaciones", icon=ft.Icons.BEACH_ACCESS,
+                                 on_click=lambda _: self._dialogo_ausencia("vacaciones")),
+            ft.TextButton("Editar saldo" if v.configurado else "Anotar mi saldo", icon=ft.Icons.EDIT,
+                          on_click=lambda _: self._dialogo_saldo_vacaciones()),
+        ], wrap=True))
+        return w.tarjeta(*controles, titulo="Mis vacaciones", icono=ft.Icons.BEACH_ACCESS)
+
+    def _dialogo_saldo_vacaciones(self) -> None:
+        cfg = self.app.svc.cfg
+        estado = {"fecha": calc.to_date(cfg.vac_saldo_fecha) if cfg.vac_saldo_fecha else date.today()}
+        dias = ft.TextField(label="Días disponibles según RR.HH.", width=290,
+                            value=num_dias(cfg.vac_saldo_dias) if cfg.vac_saldo_dias is not None else "",
+                            keyboard_type=ft.KeyboardType.NUMBER)
+        b_fecha = ft.OutlinedButton(icon=ft.Icons.EVENT)
+        acumular = ft.Switch(value=cfg.vac_acumular)
+        fila_acumular = ft.Row([acumular, ft.Text("Sumar lo que voy ganando (1,25 días por mes)", size=13,
+                                                  expand=True)])
+        anuales = ft.TextField(label="Días por año (15 + progresivos)", width=290, value=num_dias(cfg.vac_dias_anuales),
+                               keyboard_type=ft.KeyboardType.NUMBER)
+        error = ft.Text("", size=12, color=w.ROJO)
+
+        def pintar():
+            b_fecha.content = f"Saldo al: {w.fecha_corta(estado['fecha'])}"
+            anuales.visible = bool(acumular.value)
+            self.page.update()
+
+        def cambio_fecha(e):
+            if e.control.value:
+                estado["fecha"] = a_fecha(e.control.value)
+                pintar()
+
+        b_fecha.on_click = lambda _: self.page.show_dialog(ft.DatePicker(
+            value=estado["fecha"], first_date=date(2015, 1, 1), last_date=date(date.today().year + 1, 12, 31),
+            on_change=cambio_fecha))
+        acumular.on_change = lambda _: pintar()
+
+        def numero(txt) -> float:
+            try:
+                return float((txt or "").strip().replace(",", "."))
+            except ValueError:
+                raise ValueError("Escribe un número de días (ej. 15 o 7,5).") from None
+
+        def guardar(_, borrar: bool = False):
+            try:
+                if borrar:
+                    self.app.svc.guardar_saldo_vacaciones(None, None)
+                else:
+                    self.app.svc.guardar_saldo_vacaciones(numero(dias.value), estado["fecha"], acumular.value,
+                                                          numero(anuales.value or "15"))
+            except ValueError as exc:
+                error.value = str(exc)
+                self.page.update()
+                return
+            self.page.pop_dialog()
+            w.snack(self.page, "Saldo de vacaciones guardado." if not borrar else "Saldo quitado.", w.VERDE)
+            self.app.refrescar()
+
+        acciones = [ft.TextButton("Cancelar", on_click=lambda _: self.page.pop_dialog()),
+                    ft.FilledButton("Guardar", on_click=guardar)]
+        if cfg.vac_saldo_dias is not None:
+            acciones.insert(0, ft.TextButton("Quitar", on_click=lambda e: guardar(e, borrar=True),
+                                             style=ft.ButtonStyle(color=w.ROJO)))
+        self.page.show_dialog(ft.AlertDialog(
+            title=ft.Text("Mi saldo de vacaciones", size=20),
+            content=ft.Container(width=320, content=ft.Column([
+                ft.Text("Anota los días hábiles que te informó RR.HH. y la fecha de ese saldo. Las vacaciones "
+                        "que marques desde esa fecha se irán descontando.", size=13),
+                dias, b_fecha, fila_acumular, anuales,
+                ft.Text("Activa «Sumar» solo si RR.HH. te dio el saldo sin contar lo que vas ganando mes a mes.",
+                        size=11, color=ft.Colors.ON_SURFACE_VARIANT),
+                error,
+            ], tight=True, spacing=10, scroll=ft.ScrollMode.AUTO)),
+            actions=acciones,
+        ))
+        pintar()
 
     def _fila_dia(self, c: calc.DayCalc, d) -> ft.Control:
         etiquetas = []
@@ -198,10 +330,11 @@ class PeriodoView:
         self.app.refrescar()
 
     # ------------------------------------------------------------------ vacaciones / licencia en rango
-    def _dialogo_ausencia(self) -> None:
+    def _dialogo_ausencia(self, inicial: str = "vacaciones") -> None:
         hoy = date.today()
         estado = {"desde": hoy, "hasta": hoy}
-        tipo = ft.Dropdown(label="Marcar como", value="vacaciones", width=290, dense=True, options=[
+        saldo = self.app.svc.saldo_vacaciones()
+        tipo = ft.Dropdown(label="Marcar como", value=inicial, width=290, dense=True, options=[
             *[ft.DropdownOption(key=k, text=w.TIPO_ETIQUETA[k]) for k in ("vacaciones", "licencia", "permiso", "feriado")],
             ft.DropdownOption(key="quitar", text="Quitar marca (volver a laboral)"),
         ])
@@ -214,15 +347,17 @@ class PeriodoView:
             b_desde.content = f"Desde: {w.fecha_corta(estado['desde'])}"
             b_hasta.content = f"Hasta: {w.fecha_corta(estado['hasta'])}"
             n = (estado["hasta"] - estado["desde"]).days + 1
-            info.value = (f"{n} día(s). Solo cambian los días laborales; los fines de semana y los días "
-                          "con marcas no se tocan." if n > 0 else "")
+            info.value = (f"{n} día(s) corridos. Solo cambian los días laborales; los fines de semana, los "
+                          "feriados ya marcados y los días con marcas no se tocan." if n > 0 else "")
+            if n > 0 and tipo.value == "vacaciones":
+                habiles = self.app.svc.contar_habiles(estado["desde"], estado["hasta"])
+                info.value = f"Descuenta {habiles} día(s) hábil(es)"
+                if saldo.configurado:
+                    info.value += f": te quedarían {num_dias(saldo.disponibles - habiles)}"
+                info.value += (". Si hay un feriado en medio, márcalo antes como «Feriado» para que no se "
+                               "descuente.")
             error.value = "" if n > 0 else "La fecha «Hasta» es anterior a «Desde»."
             self.page.update()
-
-        def a_fecha(v):
-            if isinstance(v, datetime):
-                return (v.astimezone() if v.tzinfo else v).date()
-            return v
 
         def elegir(campo):
             def cambio(e):
@@ -234,6 +369,7 @@ class PeriodoView:
             self.page.show_dialog(ft.DatePicker(value=estado[campo], first_date=date(hoy.year - 1, 1, 1),
                                                 last_date=date(hoy.year + 2, 12, 31), on_change=cambio))
 
+        tipo.on_select = lambda _: pintar()
         b_desde.on_click = lambda _: elegir("desde")
         b_hasta.on_click = lambda _: elegir("hasta")
 
@@ -252,11 +388,13 @@ class PeriodoView:
                 msg = f"Quité la marca de {len(r['marcados'])} día(s)."
             if r["con_marcas"]:
                 msg += " No toqué " + ", ".join(w.fecha_corta(f) for f in r["con_marcas"]) + " porque tienen marcas."
+            if r.get("feriados"):
+                msg += " " + ", ".join(w.fecha_corta(f) for f in r["feriados"]) + " sigue(n) como feriado."
             w.snack(self.page, msg, w.VERDE)
             self.app.refrescar()
 
         self.page.show_dialog(ft.AlertDialog(
-            title=ft.Text("Vacaciones o licencia", size=20),
+            title=ft.Text("Marcar días", size=20),
             content=ft.Container(width=320, content=ft.Column([tipo, b_desde, b_hasta, info, error], tight=True,
                                                               spacing=10, scroll=ft.ScrollMode.AUTO)),
             actions=[ft.TextButton("Cancelar", on_click=lambda _: self.page.pop_dialog()),

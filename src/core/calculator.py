@@ -92,6 +92,12 @@ class Config:
     ciclo_dia_inicio: int = 25
     periodo_desde: Optional[str] = None
     periodo_hasta: Optional[str] = None
+    # Vacaciones (feriado legal, en días hábiles): saldo que informa RR.HH. a una fecha de corte;
+    # las vacaciones marcadas desde esa fecha (inclusive) se descuentan.
+    vac_saldo_dias: Optional[float] = None
+    vac_saldo_fecha: Optional[str] = None
+    vac_acumular: bool = False          # sumar lo que se va ganando después del corte
+    vac_dias_anuales: float = 15.0      # 15 días hábiles al año (art. 67 Código del Trabajo) + progresivos
 
     @property
     def jornada_s(self) -> int:
@@ -654,4 +660,68 @@ def calc_periodo(dias: Dias, desde: date, hasta: date, cfg: Config,
         faltante_s=sum(c.faltante_s for c in calcs), saldo_neto_s=saldo_neto, extras_s=extras_total,
         dias_trabajados=sum(1 for c in calcs if c.trabajadas_s > 0), semanas=semanas, dias=calcs,
         sin_registro=sin_registro, valor_he=valor, monto_he=monto_he, monto_extras=monto_ext,
+    )
+
+
+# ----------------------------------------------------------------------------- vacaciones
+@dataclass
+class TramoVacaciones:
+    desde: date
+    hasta: date
+    dias: int                   # días hábiles descontados
+    futuro: bool                # programado (empieza después de hoy)
+
+
+@dataclass
+class SaldoVacaciones:
+    configurado: bool
+    corte: Optional[date]
+    saldo_inicial: float        # lo que informó RR.HH. a la fecha de corte
+    acumulado: float            # ganado después del corte (si vac_acumular)
+    tomados: int                # días de vacaciones desde el corte hasta hoy (inclusive)
+    programados: int            # días de vacaciones marcados después de hoy
+    disponibles: float          # saldo_inicial + acumulado − tomados − programados
+    tramos: list                # [TramoVacaciones], más recientes primero
+
+
+def meses_completos(desde: date, hasta: date) -> int:
+    if hasta <= desde:
+        return 0
+    n = (hasta.year - desde.year) * 12 + hasta.month - desde.month
+    if hasta.day < desde.day:
+        n -= 1
+    return max(0, n)
+
+
+def tramos_vacaciones(fechas: list, dias: Mapping, cfg: Config, hoy: date) -> list:
+    """Agrupa días de vacaciones en tramos: dos días quedan en el mismo tramo si entre ellos solo
+    hay días no laborales (fin de semana) o feriados."""
+    tramos: list[TramoVacaciones] = []
+    for f in sorted(fechas):
+        if tramos:
+            t = tramos[-1]
+            hueco = [t.hasta + timedelta(days=i) for i in range(1, (f - t.hasta).days)]
+            if len(hueco) <= 6 and all(tipo_efectivo(_dia(dias, d), cfg) in ("libre", "feriado", "cambio")
+                                        for d in hueco):
+                t.hasta, t.dias = f, t.dias + 1
+                continue
+        tramos.append(TramoVacaciones(desde=f, hasta=f, dias=1, futuro=f > hoy))
+    return list(reversed(tramos))
+
+
+def saldo_vacaciones(dias: Mapping, cfg: Config, hoy: date) -> SaldoVacaciones:
+    """Saldo de vacaciones: lo informado por RR.HH. menos los días marcados como «vacaciones»."""
+    corte = to_date(cfg.vac_saldo_fecha) if cfg.vac_saldo_fecha else None
+    fechas = [f for f, d in dias.items() if d.tipo == "vacaciones" and (corte is None or f >= corte)]
+    tomados = sum(1 for f in fechas if f <= hoy)
+    programados = len(fechas) - tomados
+    configurado = cfg.vac_saldo_dias is not None and corte is not None
+    inicial = float(cfg.vac_saldo_dias or 0)
+    acumulado = (round(meses_completos(corte, hoy) * cfg.vac_dias_anuales / 12, 2)
+                 if configurado and cfg.vac_acumular else 0.0)
+    return SaldoVacaciones(
+        configurado=configurado, corte=corte, saldo_inicial=inicial, acumulado=acumulado,
+        tomados=tomados, programados=programados,
+        disponibles=round(inicial + acumulado - tomados - programados, 2),
+        tramos=tramos_vacaciones(fechas, dias, cfg, hoy),
     )

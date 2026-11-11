@@ -71,7 +71,7 @@ Hazlo con la cuenta de Google **donde te llegan los correos de Workera**. Es má
 15. En la app: pestaña **Ajustes** → **Conexión con Workera** → elige **Puente Google**.
 16. Pega la **URL** y la **clave**.
 17. Toca **Detectar**: debería aparecer tu RUT. Revisa que sea el tuyo.
-18. Toca **Probar y guardar** → debe decir **«Puente conectado (versión 1.0)»**.
+18. Toca **Probar y guardar** → debe decir **«Puente conectado (versión 1.1)»**.
 19. Ve a la pestaña **Periodo**: deberían aparecer tus días con sus horas.
 
 Desde ahora tus marcas se cargan solas cada vez que abres la app, y se guarda un respaldo en tu
@@ -84,7 +84,10 @@ cuenta de Google (si cambias de teléfono: conecta el Puente y toca **Restaurar 
   salida. Arriba verás «Semana: llevas X de Y · faltan Z» (tócalo para ver el detalle).
 - **Periodo**: abre en **tu semana** (lun–dom): cuánto llevas, cuánto falta, cuánto toca por día y tu saldo
   de horas extra. Con ‹ › cambias de semana; tocando el título ves el mes completo.
-- **Vacaciones, licencia o permiso**: en Periodo → **Vacaciones / licencia** → tipo, desde y hasta →
+- **Vacaciones**: pregúntale a RR.HH. cuántos días te quedan y anótalos en Periodo → **Mis vacaciones →
+  Anotar mi saldo** (número y fecha). Luego, con **Tomar vacaciones** (desde/hasta) la app descuenta los días
+  hábiles y te muestra cuántos te quedan, cuántos tomaste y cuántos tienes programados.
+- **Licencia, permiso o feriado**: en Periodo → **Licencia / permiso / feriado** → tipo, desde y hasta →
   **Aplicar**. Esos días no cuentan en la meta. Para deshacer, **Quitar marca**.
 - **Ajustes**: tu jornada, días laborales, sueldo base (para estimar el pago de horas extra) y el tope semanal.
 - **Actualizaciones**: cuando haya una versión nueva, cierra la app y ábrela otra vez (a veces dos veces).
