@@ -79,6 +79,18 @@ cuenta de Google (si cambias de teléfono: conecta el Puente y toca **Restaurar 
 
 ---
 
+## C. Uso diario
+- **Hoy**: marca ingreso y salida (o deja que el Puente los traiga), elige el plan del día y mira tu hora de
+  salida. Arriba verás «Semana: llevas X de Y · faltan Z» (tócalo para ver el detalle).
+- **Periodo**: abre en **tu semana** (lun–dom): cuánto llevas, cuánto falta, cuánto toca por día y tu saldo
+  de horas extra. Con ‹ › cambias de semana; tocando el título ves el mes completo.
+- **Vacaciones, licencia o permiso**: en Periodo → **Vacaciones / licencia** → tipo, desde y hasta →
+  **Aplicar**. Esos días no cuentan en la meta. Para deshacer, **Quitar marca**.
+- **Ajustes**: tu jornada, días laborales, sueldo base (para estimar el pago de horas extra) y el tope semanal.
+- **Actualizaciones**: cuando haya una versión nueva, cierra la app y ábrela otra vez (a veces dos veces).
+
+---
+
 ## Si solo tienes el iPhone
 Se puede hacer la parte B en el iPhone, pero es más incómodo: en Safari abre script.google.com,
 toca **aA** en la barra de direcciones → **Solicitar sitio web de escritorio**, y sigue los mismos pasos
