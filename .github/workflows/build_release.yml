@@ -114,6 +114,11 @@ jobs:
             --pwa-short-name "Reloj" \
             --pwa-background-color "#121212" \
             --pwa-theme-color "#D93A6B"
+      - name: Íconos con versión (el iPhone guarda en caché el ícono por URL)
+        run: |
+          V="${GITHUB_SHA::7}"
+          sed -i -E "s#(icons/[A-Za-z0-9_-]+\.png|favicon\.png)\"#\1?v=$V\"#g" build/web/index.html build/web/manifest.json
+          grep -o 'apple-touch-icon[^>]*' build/web/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web

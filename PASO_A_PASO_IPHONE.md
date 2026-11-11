@@ -88,6 +88,13 @@ cuenta de Google (si cambias de teléfono: conecta el Puente y toca **Restaurar 
   **Aplicar**. Esos días no cuentan en la meta. Para deshacer, **Quitar marca**.
 - **Ajustes**: tu jornada, días laborales, sueldo base (para estimar el pago de horas extra) y el tope semanal.
 - **Actualizaciones**: cuando haya una versión nueva, cierra la app y ábrela otra vez (a veces dos veces).
+- **Ícono nuevo**: el iPhone no cambia el ícono de una app ya agregada. Para verlo hay que quitarla y
+  agregarla de nuevo, y **eso puede borrar los datos de la app en el iPhone**. Antes:
+  1. **Ajustes → Respaldar ahora** (con el Puente conectado) y ten a mano la URL y la clave del Puente
+     (la clave está en script.google.com → tu proyecto → ⚙️ Configuración → Propiedades → `TOKEN`;
+     la URL en **Implementar → Gestionar implementaciones**).
+  2. Mantén presionado el ícono → **Eliminar app** → agrégala otra vez desde Safari.
+  3. **Ajustes → Puente Google** → pega URL y clave → **Probar y guardar** → **Restaurar respaldo**.
 
 ---
 
