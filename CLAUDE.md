@@ -154,8 +154,21 @@ Una sugerencia aplicada de la alerta queda como `alerta` y no se borra al re-con
   recomendado), cierre de semana (penúltimo día laboral real ≥ 14:00), último día ("Puedes
   retirarte a las HH:MM:SS"), hora límite del tope, aviso de salida (5 min antes), motivo HE.
   Penúltimo/último día se calculan con los días laborales reales (feriados, permisos, cambios).
-- Periodo: mes calendario, ciclo mensual (ej. 25→24) o fechas específicas. Resumen:
-  trabajadas, HE, faltantes, saldo neto, extraordinarias, días trabajados; tabla semanal.
+- Periodo: **semana lun–dom (por defecto)**, mes calendario, ciclo mensual (ej. 25→24) o fechas
+  específicas. Resumen: trabajadas, HE, faltantes, saldo neto, extraordinarias, días trabajados;
+  tabla semanal.
+- **Mi semana** (`resumen_semana` → `ResumenSemana`): meta, llevas (incluye el día en curso),
+  faltan, exceso, HE, faltantes, saldo, días restantes, horas por día y hora de salida de hoy.
+  En Hoy aparece como franja «Semana: llevas X de Y · faltan Z» (al tocarla abre Periodo).
+- **Ausencias por rango** (`JornadaService.marcar_rango`): vacaciones/licencia/permiso/feriado o
+  quitar; solo días laborales; omite días con marcas, días de cambio y (salvo para «feriado»)
+  días ya marcados como feriado. Máx. 92 días.
+- **Saldo de vacaciones** (`saldo_vacaciones` → `SaldoVacaciones`, en días hábiles): Config
+  `vac_saldo_dias` + `vac_saldo_fecha` (lo que informa RR.HH. a una fecha de corte). Se descuentan
+  los días `tipo == "vacaciones"` con fecha ≥ corte: `tomados` (≤ hoy) y `programados` (> hoy).
+  Opcional `vac_acumular`: suma `vac_dias_anuales / 12` (15 → 1,25) por mes completo desde el
+  corte. Los tramos agrupan días separados solo por días libres o feriados. La app **no** conoce los
+  feriados de Chile: el usuario debe marcarlos como «Feriado» para que no se descuenten.
 - **Valor HE (Chile)**: `sueldo_base ÷ 30 × 28 ÷ (jornada_semanal × 4) × 1,5`, jornada
   semanal por defecto **42 h** (Ley 40 Horas desde abril 2026). $1.500.000 → $12.500/h.
   Monto = saldo neto (si es negativo → $0) × valor HE + horas extraordinarias × su valor.
