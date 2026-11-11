@@ -113,7 +113,7 @@ jobs:
             --route-url-strategy hash \
             --pwa-short-name "Reloj" \
             --pwa-background-color "#121212" \
-            --pwa-theme-color "#00897B"
+            --pwa-theme-color "#D93A6B"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
