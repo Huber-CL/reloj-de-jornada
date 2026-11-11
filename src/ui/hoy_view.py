@@ -51,7 +51,7 @@ class HoyView:
         self.cfg = self.app.svc.cfg
         self.seg = self.cfg.mostrar_segundos
         st = self.st = self.app.svc.estado(self.fecha, w.ahora_s())
-        c: list[ft.Control] = [self._cabecera(st)]
+        c: list[ft.Control] = [self._cabecera(st), self._linea_semana()]
         res = st.resolucion
         if res and res.pregunta:
             c.append(self._banner_pregunta(res))
@@ -89,6 +89,30 @@ class HoyView:
             fila.append(ft.IconButton(ft.Icons.SYNC, tooltip="Sincronizar con Workera",
                                       on_click=lambda _: self.page.run_task(self.app.sincronizar)))
         return ft.Row(fila, vertical_alignment=ft.CrossAxisAlignment.START)
+
+    def _linea_semana(self) -> ft.Control:
+        """Resumen corto de la semana: cuánto llevo, cuánto falta y cuánto toca por día."""
+        r = self.app.svc.resumen_semana(self.fecha, hoy=self.fecha, ahora_s=w.ahora_s())
+        if r.meta_s == 0:
+            texto, color = "Semana sin días laborales.", ft.Colors.ON_SURFACE_VARIANT
+        elif r.faltan_s > 0:
+            texto = f"Semana: llevas {w.dur(r.llevas_s)} de {w.dur(r.meta_s)} · faltan {w.dur(r.faltan_s)}"
+            if r.salida_hoy_s is not None and r.dias_restantes == 1:
+                texto += f" · la completas hoy a las {w.hora(r.salida_hoy_s, False)}"
+            elif r.dias_restantes > 1 and r.por_dia_s is not None:
+                texto += f" · {w.dur(r.por_dia_s)} por día en {r.dias_restantes} días"
+            color = w.AZUL
+        else:
+            texto = f"Semana completa: {w.dur(r.llevas_s)} de {w.dur(r.meta_s)}"
+            texto += f" (+{w.dur(r.exceso_s)})" if r.exceso_s else ""
+            color = w.VERDE
+        return ft.Container(
+            content=ft.Row([ft.Icon(ft.Icons.DATE_RANGE, size=18, color=color),
+                            ft.Text(texto, size=13, color=color, expand=True)], spacing=6),
+            bgcolor=ft.Colors.with_opacity(0.08, color), border_radius=10,
+            padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+            on_click=lambda _: self.app.ir_a(1), ink=True,
+        )
 
     def _banner_pregunta(self, res: ResolucionDia) -> ft.Control:
         p = res.pregunta

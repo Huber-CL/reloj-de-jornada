@@ -174,3 +174,39 @@ class TestPeriodoYValor:
         dias = {LUN: dia(LUN, "08:00:00", "15:00:00")}
         p = calc_periodo(dias, LUN, LUN, Config(sueldo_base=1_500_000))
         assert p.saldo_neto_s == -2 * H and p.monto_he == 0
+
+
+class TestResumenSemana:
+    L, MA, MI, J, V = (date(2026, 11, d) for d in (9, 10, 11, 12, 13))
+
+    def test_rango_semana(self):
+        assert rango_periodo("semana", date(2026, 11, 11)) == (date(2026, 11, 9), date(2026, 11, 15))
+        assert Config().periodo_modo == "semana"
+
+    def test_llevas_faltan_y_por_dia_con_dia_en_curso(self):
+        from core.calculator import resumen_semana
+        dias = semana(dia(self.L, "08:00:00", "17:00:00"), dia(self.MA, "08:00:00", "16:00:00"),
+                      dia(self.MI, "08:00:00"))
+        r = resumen_semana(self.MI, dias, CFG, hoy=self.MI, ahora_s=12 * H)
+        assert r.meta_s == 40 * H and r.dias_laborales == 5
+        assert r.llevas_s == 18 * H                     # 8 + 7 + 3 (hoy: 4 h − colación)
+        assert r.faltan_s == 22 * H and r.exceso_s == 0
+        assert r.dias_restantes == 3                    # hoy (en curso), jueves y viernes
+        assert r.por_dia_s == 22 * H // 3
+        assert r.saldo_s == -H                          # solo días completos: lunes 0, martes −1 h
+
+    def test_feriado_baja_la_meta_y_dia_sin_registro(self):
+        from core.calculator import resumen_semana
+        dias = semana(dia(self.MA, "08:00:00", "17:00:00"), dia(self.J, tipo="feriado"))
+        r = resumen_semana(self.MI, dias, CFG, hoy=self.MI)
+        assert r.meta_s == 32 * H and r.dias_laborales == 4
+        assert r.sin_registro == [self.L]               # lunes laboral pasado sin marcas
+        assert r.dias_restantes == 2                    # miércoles (sin marcar aún) y viernes
+
+    def test_ultimo_dia_hora_para_completar_la_semana(self):
+        from core.calculator import resumen_semana
+        dias = semana(*(dia(f, "08:00:00", "17:00:00") for f in (self.L, self.MA, self.MI, self.J)),
+                      dia(self.V, "08:00:00"))
+        r = resumen_semana(self.V, dias, CFG, hoy=self.V, ahora_s=10 * H)
+        assert r.llevas_s == 33 * H and r.faltan_s == 7 * H and r.dias_restantes == 1
+        assert r.salida_hoy_s == 17 * H                 # 08:00 + 8 h + colación

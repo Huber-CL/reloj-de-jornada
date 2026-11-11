@@ -11,7 +11,8 @@ from core import calculator as calc
 from ui import widgets as w
 from ui.editor_dia import abrir_editor
 
-MODOS = {"mes": "Mes calendario", "ciclo": "Ciclo mensual", "fechas": "Fechas específicas"}
+MODOS = {"semana": "Semana (lun–dom)", "mes": "Mes calendario", "ciclo": "Ciclo mensual",
+         "fechas": "Fechas específicas"}
 
 
 def pesos(n: float) -> str:
@@ -36,6 +37,11 @@ class PeriodoView:
         titulo = f"{w.fecha_corta(p.desde)} – {w.fecha_corta(p.hasta)}"
         if cfg.periodo_modo == "mes":
             titulo = f"{w.MESES[p.desde.month - 1].capitalize()} {p.desde.year}"
+        elif cfg.periodo_modo == "semana":
+            titulo = (f"Semana {p.desde.day}–{p.hasta.day} {w.MESES_CORTOS[p.hasta.month - 1]}"
+                      if p.desde.month == p.hasta.month else
+                      f"Semana {p.desde.day} {w.MESES_CORTOS[p.desde.month - 1]} – "
+                      f"{p.hasta.day} {w.MESES_CORTOS[p.hasta.month - 1]}")
 
         cab = ft.Row([
             ft.IconButton(ft.Icons.CHEVRON_LEFT, on_click=lambda _: self._mover(-1),
@@ -102,7 +108,50 @@ class PeriodoView:
                           icon=ft.Icons.DELETE_FOREVER, on_click=self._borrar,
                           style=ft.ButtonStyle(color=w.ROJO)),
         ], wrap=True)
-        self.lista.controls = [cab, resumen, cobro, semanas, acciones, lista_dias]
+        if cfg.periodo_modo == "semana":
+            self.lista.controls = [cab, self._tarjeta_semana(), cobro, acciones, lista_dias]
+        else:
+            self.lista.controls = [cab, resumen, cobro, semanas, acciones, lista_dias]
+
+    def _tarjeta_semana(self) -> ft.Control:
+        r = self.app.svc.resumen_semana(self.ref, ahora_s=w.ahora_s())
+        hoy = date.today()
+        avance = min(1.0, r.llevas_s / r.meta_s) if r.meta_s else 1.0
+        controles: list[ft.Control] = [
+            ft.Row([w.dato("Llevas", w.dur(r.llevas_s), grande=True),
+                    w.dato("Meta de la semana", w.dur(r.meta_s), grande=True)],
+                   alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.ProgressBar(value=avance, bar_height=10),
+        ]
+        if r.meta_s == 0:
+            controles.append(ft.Text("Esta semana no tiene días laborales.", size=14))
+        elif r.faltan_s > 0:
+            controles.append(ft.Text(f"Te faltan {w.dur(r.faltan_s)} para completar las {w.dur(r.meta_s)} de la semana.",
+                                     size=15, weight=ft.FontWeight.W_500, color=w.AMBAR))
+            if r.salida_hoy_s is not None and r.dias_restantes == 1:
+                controles.append(ft.Text(f"Hoy completas la semana a las {w.hora(r.salida_hoy_s, False)}.", size=14))
+            elif r.dias_restantes:
+                controles.append(ft.Text(
+                    f"Quedan {r.dias_restantes} día(s) laboral(es): unas {w.dur(r.por_dia_s)} por día (más colación).",
+                    size=14))
+            elif r.lunes <= hoy:
+                controles.append(ft.Text("Ya no quedan días laborales en esta semana.", size=13,
+                                         color=ft.Colors.ON_SURFACE_VARIANT))
+        else:
+            extra = f" (+{w.dur(r.exceso_s)} sobre la meta)" if r.exceso_s else ""
+            controles.append(ft.Text(f"¡Semana completa!{extra}", size=15, weight=ft.FontWeight.W_500, color=w.VERDE))
+        controles.append(ft.Row([
+            w.dato("Horas extra", w.dur(r.he_s), w.VERDE if r.he_s else None),
+            w.dato("Faltantes", w.dur(r.faltante_s), w.ROJO if r.faltante_s else None),
+            w.dato("Saldo", w.dur_signo(r.saldo_s), w.VERDE if r.saldo_s > 0 else w.ROJO if r.saldo_s < 0 else None),
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True))
+        controles.append(ft.Text("Saldo = horas extra − faltantes de los días ya cerrados (con ingreso y salida).",
+                                 size=11, color=ft.Colors.ON_SURFACE_VARIANT))
+        if r.sin_registro:
+            controles.append(ft.Text(
+                "Sin registro: " + ", ".join(w.fecha_corta(f) for f in r.sin_registro)
+                + ". Cuentan en la meta; tócalos abajo para registrarlos si trabajaste.", size=12, color=w.AMBAR))
+        return w.tarjeta(*controles, titulo="Mi semana", icono=ft.Icons.DATE_RANGE)
 
     def _fila_dia(self, c: calc.DayCalc, d) -> ft.Control:
         etiquetas = []
@@ -138,7 +187,9 @@ class PeriodoView:
     # ------------------------------------------------------------------ acciones
     def _mover(self, k: int) -> None:
         cfg = self.app.svc.cfg
-        if cfg.periodo_modo in ("mes", "ciclo"):
+        if cfg.periodo_modo == "semana":
+            self.ref += timedelta(days=7 * k)
+        elif cfg.periodo_modo in ("mes", "ciclo"):
             anio, mes = calc._mover_mes(self.ref.year, self.ref.month, k)
             self.ref = calc._fecha_ajustada(anio, mes, self.ref.day)
         self._confirmando_borrado = False

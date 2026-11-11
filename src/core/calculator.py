@@ -88,7 +88,7 @@ class Config:
     aviso_salida_min: int = 5
     aviso_sonido: bool = True
     dias_laborales: tuple[int, ...] = (0, 1, 2, 3, 4)   # lunes=0
-    periodo_modo: str = "mes"           # "mes" | "ciclo" | "fechas"
+    periodo_modo: str = "semana"        # "semana" | "mes" | "ciclo" | "fechas"
     ciclo_dia_inicio: int = 25
     periodo_desde: Optional[str] = None
     periodo_hasta: Optional[str] = None
@@ -509,6 +509,9 @@ def _mover_mes(anio: int, mes: int, k: int) -> tuple[int, int]:
 
 def rango_periodo(modo: str, ref: date, ciclo_dia_inicio: int = 25,
                   desde=None, hasta=None) -> tuple[date, date]:
+    if modo == "semana":
+        lunes = lunes_de(ref)
+        return lunes, lunes + timedelta(days=6)
     if modo == "mes":
         return date(ref.year, ref.month, 1), _fecha_ajustada(ref.year, ref.month, 31)
     if modo == "ciclo":
@@ -526,6 +529,64 @@ def rango_periodo(modo: str, ref: date, ciclo_dia_inicio: int = 25,
             raise ValueError("'hasta' no puede ser anterior a 'desde'")
         return d, h
     raise ValueError(f"Modo de periodo inválido: {modo!r}")
+
+
+@dataclass
+class ResumenSemana:
+    """Cómo voy en la semana (lun–dom): meta, cuánto llevo, cuánto falta y cuánto toca por día."""
+    lunes: date
+    domingo: date
+    meta_s: int                 # suma de la meta de los días laborales (feriados/permisos/cambios: 0)
+    llevas_s: int               # trabajadas, incluido el día en curso hasta `ahora_s`
+    faltan_s: int               # max(0, meta − llevas): horas para completar la semana
+    exceso_s: int               # max(0, llevas − meta): horas por sobre la meta semanal
+    he_s: int                   # horas extra de la semana (con tope diario)
+    faltante_s: int
+    saldo_s: int                # he − faltantes (días completos), como en la tabla semanal
+    dias_laborales: int
+    dias_restantes: int         # laborales desde hoy (hoy cuenta si aún no marcas salida)
+    por_dia_s: Optional[int]    # faltan / días restantes
+    sin_registro: list[date]    # laborales pasados sin marcas (cuentan en la meta)
+    salida_hoy_s: Optional[int] = None   # si hoy está en curso: hora en que completarías la semana
+
+
+def resumen_semana(fecha: date, dias: Dias, cfg: Config, hoy: Optional[date] = None,
+                   ahora_s: Optional[int] = None) -> ResumenSemana:
+    hoy = hoy or fecha
+    semana = calc_semana(fecha, dias, cfg)
+    lunes, domingo = semana.lunes, semana.domingo
+    meta = llevas = 0
+    laborales = restantes = 0
+    sin_registro: list[date] = []
+    salida_hoy = None
+    for c in semana.dias:
+        day = _dia(dias, c.fecha)
+        if c.laboral:
+            laborales += 1
+            meta += c.meta_s
+        llevas += c.trabajadas_s
+        en_curso = c.estado == "en_curso" and c.fecha == hoy and ahora_s is not None
+        if en_curso:
+            llevas += calc_dia(replace(day, salida=fmt_hms(ahora_s)), cfg).trabajadas_s
+        if c.laboral and (c.fecha > hoy or (c.fecha == hoy and c.estado != "completo")):
+            restantes += 1
+        if c.laboral and c.fecha < hoy and c.estado == "sin_registro":
+            sin_registro.append(c.fecha)
+    faltan = max(0, meta - llevas)
+    hoy_calc = next((c for c in semana.dias if c.fecha == hoy), None)
+    if hoy_calc and hoy_calc.estado == "en_curso" and ahora_s is not None:
+        # Si hoy fuera el último día: a qué hora completas la meta semanal (colación incluida si aún no pasa).
+        ing = parse_hms(_dia(dias, hoy).ingreso)
+        trab_hoy = calc_dia(replace(_dia(dias, hoy), salida=fmt_hms(ahora_s)), cfg).trabajadas_s
+        resto = faltan + trab_hoy
+        salida_hoy = ing + resto + (hoy_calc.colacion_s if resto > 0 else 0)
+    return ResumenSemana(
+        lunes=lunes, domingo=domingo, meta_s=meta, llevas_s=llevas, faltan_s=faltan,
+        exceso_s=max(0, llevas - meta), he_s=semana.he_s, faltante_s=semana.faltante_s,
+        saldo_s=semana.saldo_s, dias_laborales=laborales, dias_restantes=restantes,
+        por_dia_s=(faltan // restantes) if restantes else None, sin_registro=sin_registro,
+        salida_hoy_s=salida_hoy,
+    )
 
 
 @dataclass

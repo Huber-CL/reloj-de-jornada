@@ -113,6 +113,10 @@ class JornadaService:
         dias = self._dias_para(fecha, cfg)
         return calc.salida_plan_s(dias.get(fecha) or day, dias, cfg, self._periodo_tope(fecha, cfg))
 
+    def resumen_semana(self, fecha: date, hoy: Optional[date] = None, ahora_s: Optional[int] = None):
+        return calc.resumen_semana(fecha, self._dias_semana(fecha), self.cfg, hoy=hoy or date.today(),
+                                   ahora_s=ahora_s)
+
     def periodo(self, ref: date, hoy: Optional[date] = None) -> PeriodCalc:
         cfg = self.cfg
         desde, hasta = calc.rango_periodo(cfg.periodo_modo, ref, cfg.ciclo_dia_inicio,
