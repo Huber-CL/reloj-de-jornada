@@ -246,14 +246,14 @@ class TestSolicitudAceptada:
 
     def test_relee_una_vez_al_actualizar_el_lector(self, db):
         from services.sync import VERSION_LECTOR
-        db.marcar_uid_visto("yo@gmail.com", "INBOX", "viejo")
+        db.marcar_uid_visto("yo@example.com", "INBOX", "viejo")
         db.set_meta("ultima_sync_fecha", "2026-11-10")
         FakeMailbox.buzon = []
         sync = SyncService(db, mailbox_factory=FakeMailbox)
-        cred = Credenciales(usuario="yo@gmail.com", app_password=CLAVE_FICTICIA, carpeta="INBOX", rut=RUT_PRUEBA)
+        cred = Credenciales(usuario="yo@example.com", app_password=CLAVE_FICTICIA, carpeta="INBOX", rut=RUT_PRUEBA)
         sync.sincronizar(cred, hoy=date(2026, 11, 12))
         assert db.get_meta("version_lector") == VERSION_LECTOR
-        assert "viejo" not in db.uids_vistos("yo@gmail.com", "INBOX")
-        db.marcar_uid_visto("yo@gmail.com", "INBOX", "nuevo")
+        assert "viejo" not in db.uids_vistos("yo@example.com", "INBOX")
+        db.marcar_uid_visto("yo@example.com", "INBOX", "nuevo")
         sync.sincronizar(cred, hoy=date(2026, 11, 12))          # la segunda vez ya no olvida
-        assert "nuevo" in db.uids_vistos("yo@gmail.com", "INBOX")
+        assert "nuevo" in db.uids_vistos("yo@example.com", "INBOX")
