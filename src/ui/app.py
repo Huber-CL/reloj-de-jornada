@@ -51,6 +51,8 @@ class RelojApp:
         self._vistas = {}
         self._indice = 0
         self._cuerpo = ft.Container(expand=True)
+        # Barra fina arriba, en todas las pestañas, mientras se sincroniza (Gmail o Puente).
+        self._barra_sync = ft.ProgressBar(bar_height=3, visible=False)
         self._ultimo_sync_auto = 0.0
         self._guardado_pendiente = False
         self._prefs: Optional[ft.SharedPreferences] = None
@@ -126,7 +128,7 @@ class RelojApp:
             ],
         )
         self.page.controls.clear()
-        self.page.add(ft.SafeArea(self._cuerpo, expand=True))
+        self.page.add(ft.SafeArea(ft.Column([self._barra_sync, self._cuerpo], spacing=0, expand=True), expand=True))
         self.ir_a(self._indice)
         if self.puede_sincronizar():
             self.page.run_task(self.sincronizar, True)
@@ -145,6 +147,7 @@ class RelojApp:
         self.page.run_task(self.actualizar_push)
 
     def refrescar(self) -> None:
+        self._barra_sync.visible = self.sincronizando
         if self._vistas:
             self._vistas[self._indice].refrescar()
             self.page.update()

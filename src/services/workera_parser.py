@@ -2,6 +2,7 @@
 
 Tipo A: "Notificación: Nuevos registros de asistencia - DD/MM/AAAA"  → MarcacionWorkera
 Tipo B: "Alertas de asistencia automáticas - [día] DD/MM/AAAA"       → AlertaWorkera
+Tipo C: "Solicitud de marcación aceptada" (RR.HH. registra una marca olvidada) → MarcacionWorkera
 
 Solo stdlib (html.parser + email) para que el build de Android no arrastre extensiones C.
 La extracción primero lee las tablas HTML (filas etiqueta | valor) y, si falta algo, cae a
@@ -9,6 +10,7 @@ expresiones regulares sobre el texto plano del correo.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -24,6 +26,7 @@ WORKERA_SENDER = "notificaciones@workera.com"
 WORKERA_DOMAIN = "workera.com"
 TIPO_A = "A"
 TIPO_B = "B"
+TIPO_C = "C"
 
 
 class WorkeraParseError(ValueError):
@@ -380,6 +383,67 @@ def parse_alerta_html(contenido: str) -> AlertaWorkera:
     )
 
 
+# ----------------------------------------------------------------------------- Tipo C
+_ETIQUETAS_C = {
+    "requerimiento": "requerimiento",
+    "tipo de marcacion solicitada": "tipo",
+    "tipo de marcacion": "tipo",
+    "fecha/hora marcacion solicitada": "fecha_hora",
+    "fecha/hora marcacion": "fecha_hora",
+    "fecha y hora marcacion solicitada": "fecha_hora",
+    "estado": "estado",
+}
+
+_RESPALDO_C = {
+    "requerimiento": r"requerimiento:? (creacion de marcacion|modificacion de marcacion|eliminacion de marcacion)",
+    "tipo": r"tipo de marcacion solicitada:? (entrada|salida)",
+    "fecha_hora": r"fecha/hora marcacion solicitada:? (\d{1,2}/\d{1,2}/\d{4} \d{1,2}:\d{2}(?::\d{2})?)",
+    "estado": r"\bestado:? (aceptad[oa]|rechazad[oa]|pendiente)",
+}
+
+
+def checksum_solicitud(fecha: str, hora: str, tipo: str) -> str:
+    """Las solicitudes no traen hash: se arma uno estable para que reimportar el correo no duplique."""
+    return "SOL" + hashlib.sha1(f"{fecha}T{hora}|{tipo}".encode()).hexdigest()[:20].upper()
+
+
+def parse_solicitud_html(contenido: str) -> Optional[MarcacionWorkera]:
+    """Correo «Solicitud de marcación aceptada/rechazada». Devuelve la marca creada por RR.HH.,
+    o None si el requerimiento no es una creación de marcación (modificación/eliminación: aún no
+    se conoce su formato, se ignoran)."""
+    filas, texto = _analizar_html(contenido)
+    datos = _pares_etiqueta_valor(filas, _ETIQUETAS_C)
+    _pares_en_lineas(texto, _ETIQUETAS_C, datos)
+    plano = normalizar(texto)
+    for campo, patron in _RESPALDO_C.items():
+        if campo not in datos:
+            m = re.search(patron, plano)
+            if m:
+                datos[campo] = m[1]
+
+    requerimiento = normalizar(datos.get("requerimiento", ""))
+    if requerimiento and "creacion" not in requerimiento:
+        return None
+    faltan = [c for c in ("tipo", "fecha_hora") if not datos.get(c)]
+    if faltan:
+        raise WorkeraParseError(f"Solicitud de marcación sin: {', '.join(faltan)}")
+    tipo = normalizar(datos["tipo"])
+    if tipo not in ("entrada", "salida"):
+        raise WorkeraParseError(f"Tipo de marcación desconocido: {datos['tipo']!r}")
+    fecha, hora = _fecha_iso(datos["fecha_hora"]), _hora_hms(datos["fecha_hora"].split(" ", 1)[-1])
+    estado = normalizar(datos.get("estado", ""))
+    aceptada = estado.startswith("aceptad") or (not estado and "solicitud de marcacion aceptada" in plano)
+    m = re.search(r"estimad[oa] trabajador[a]?:?\s*\n([^\n]+)", texto, re.IGNORECASE)
+    return MarcacionWorkera(
+        fecha=fecha, hora=hora, tipo_marca_declarado=tipo.capitalize(),
+        checksum=checksum_solicitud(fecha, hora, tipo),
+        dispositivo="Solicitud aceptada por RR.HH." if aceptada else "Solicitud no aceptada",
+        estado="Activo" if aceptada else (datos.get("estado") or "Pendiente").capitalize(),
+        nombre_trabajador=m[1].strip() if m else "",
+        raw_text=texto, tipo_correo=TIPO_C,
+    )
+
+
 # ----------------------------------------------------------------------------- correo completo
 def clasificar(asunto: str = "", texto: str = "") -> Optional[str]:
     a, t = normalizar(asunto), normalizar(texto)
@@ -387,20 +451,27 @@ def clasificar(asunto: str = "", texto: str = "") -> Optional[str]:
         return TIPO_A
     if "alertas de asistencia" in a:
         return TIPO_B
+    if "solicitud de marcacion" in a:
+        return TIPO_C
     if "hash (checksum)" in t or "nuevos registros de asistencia" in t:
         return TIPO_A
     if "hora generacion alerta" in t or "alertas de asistencia" in t:
         return TIPO_B
+    if "solicitud de marcacion" in t and "marcacion solicitada" in t:
+        return TIPO_C
     return None
 
 
-def parse_contenido(contenido: str, asunto: str = "") -> Union[MarcacionWorkera, AlertaWorkera]:
-    """Parsea el HTML (o texto) de un correo Workera, clasificándolo por asunto o contenido."""
+def parse_contenido(contenido: str, asunto: str = "") -> Union[MarcacionWorkera, AlertaWorkera, None]:
+    """Parsea el HTML (o texto) de un correo Workera, clasificándolo por asunto o contenido.
+    Devuelve None para solicitudes que no crean una marca (se ignoran)."""
     tipo = clasificar(asunto, _analizar_html(contenido)[1])
     if tipo == TIPO_A:
         return parse_marcacion_html(contenido)
     if tipo == TIPO_B:
         return parse_alerta_html(contenido)
+    if tipo == TIPO_C:
+        return parse_solicitud_html(contenido)
     raise WorkeraParseError("No es un correo de marcación ni de alertas de Workera")
 
 
@@ -434,6 +505,8 @@ def parse_email(raw: Union[bytes, EmailMessage]) -> Optional[CorreoWorkera]:
     except WorkeraParseError:
         if clasificar(asunto):
             raise
+        return None
+    if datos is None:
         return None
 
     auth = " ".join(str(v) for v in (msg.get_all("authentication-results") or []))

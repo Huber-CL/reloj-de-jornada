@@ -95,3 +95,27 @@ def email_bytes(html: str, asunto: str, remitente="Workera <notificaciones@worke
     msg.set_content("Versión texto del correo")
     msg.add_alternative(html, subtype="html", cte="quoted-printable")
     return msg.as_bytes()
+
+
+_SOLICITUD = Template("""<html><body>
+<table width="100%"><tr><td>
+  <h1>Solicitud de marcaci&oacute;n $titulo</h1>
+  <p>Estimado Trabajador:<br><b>$nombre</b><br>
+  El usuario <b>PERSONA DE RRHH</b> de la Compa&ntilde;&iacute;a <b>EMPRESA DE PRUEBA LIMITADA</b>
+  ha contestado la siguiente solicitud de marcaci&oacute;n:</p>
+  <table>
+    <tr><td><b>Requerimiento</b></td><td>$requerimiento</td></tr>
+    <tr><td><b>Tipo de marcaci&oacute;n solicitada</b></td><td>$tipo</td></tr>
+    <tr><td><b>Fecha/hora marcaci&oacute;n solicitada</b></td><td>$fecha_hora</td></tr>
+    <tr><td><b>Estado</b></td><td><span style="color:#5cb85c">$estado</span></td></tr>
+  </table>
+</td></tr></table>
+<div>Workera&reg;, un producto de Qwantec 2026</div>
+</body></html>""")
+
+
+def html_solicitud(fecha_hora="10/11/2026 09:30:00", tipo="Entrada", estado="Aceptado",
+                   requerimiento="Creaci&oacute;n de marcaci&oacute;n", nombre="NOMBRE APELLIDO PRUEBA") -> str:
+    titulo = "aceptada" if estado.lower().startswith("acept") else "rechazada"
+    return _SOLICITUD.substitute(titulo=titulo, nombre=nombre, requerimiento=requerimiento, tipo=tipo,
+                                 fecha_hora=fecha_hora, estado=estado)

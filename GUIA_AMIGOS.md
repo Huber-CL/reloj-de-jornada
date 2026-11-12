@@ -44,7 +44,8 @@ correos de Workera:
 6. En Reloj de Jornada: **Ajustes → Conexión con Workera → Puente Google**. Pega la **URL** y la
    **clave**, toca **Detectar** para completar tu RUT (revisa que sea el tuyo) y luego **Probar y guardar**.
 
-Listo: la app carga tus marcas (incluso si el reloj marcó dos veces «Entrada») y las alertas diarias.
+Listo: la app carga tus marcas (incluso si el reloj marcó dos veces «Entrada»), las alertas diarias y las
+marcas que RR.HH. registra cuando se te olvidó marcar (correo «Solicitud de marcación aceptada»).
 
 > **¿Por qué «Cualquier usuario»?** Para que la app pueda consultar el Puente sin iniciar sesión.
 > Está protegido con tu clave: sin ella responde «Clave inválida». Si crees que tu clave se filtró,

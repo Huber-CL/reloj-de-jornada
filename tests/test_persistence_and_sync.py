@@ -229,3 +229,31 @@ class TestVacacionesServicio:
         assert s.configurado and s.programados == 5 and s.disponibles == 15
         with pytest.raises(ValueError):
             svc.guardar_saldo_vacaciones(-1, date(2026, 11, 1))
+
+
+
+class TestSolicitudAceptada:
+    def test_completa_el_dia_y_no_duplica(self, db):
+        from tests.fixtures.workera_html import html_solicitud
+        sync = SyncService(db)
+        cred = Credenciales(usuario="yo@example.com", carpeta="INBOX", rut=RUT_PRUEBA)
+        salida = correo_a("18:10:00", "AAA111", fecha="10/11/2026")
+        solicitud = email_bytes(html_solicitud(), "Solicitud de marcación aceptada")
+        r = sync.procesar([("1", salida), ("2", solicitud), ("3", solicitud)], cred)
+        assert r.marcas_nuevas == 2
+        d = db.get_day(date(2026, 11, 10))
+        assert (d.ingreso, d.salida) == ("09:30:00", "18:10:00")
+
+    def test_relee_una_vez_al_actualizar_el_lector(self, db):
+        from services.sync import VERSION_LECTOR
+        db.marcar_uid_visto("yo@gmail.com", "INBOX", "viejo")
+        db.set_meta("ultima_sync_fecha", "2026-11-10")
+        FakeMailbox.buzon = []
+        sync = SyncService(db, mailbox_factory=FakeMailbox)
+        cred = Credenciales(usuario="yo@gmail.com", app_password=CLAVE_FICTICIA, carpeta="INBOX", rut=RUT_PRUEBA)
+        sync.sincronizar(cred, hoy=date(2026, 11, 12))
+        assert db.get_meta("version_lector") == VERSION_LECTOR
+        assert "viejo" not in db.uids_vistos("yo@gmail.com", "INBOX")
+        db.marcar_uid_visto("yo@gmail.com", "INBOX", "nuevo")
+        sync.sincronizar(cred, hoy=date(2026, 11, 12))          # la segunda vez ya no olvida
+        assert "nuevo" in db.uids_vistos("yo@gmail.com", "INBOX")

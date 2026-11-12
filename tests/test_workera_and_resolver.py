@@ -358,3 +358,38 @@ def test_busqueda_imap_por_dominio():
     from services.imap_client import criterio_remitente
     assert criterio_remitente("notificaciones@workera.com") == "workera.com"
     assert criterio_remitente("") == "workera.com"
+
+
+
+# ----------------------------------------------------------------------------- Tipo C: solicitud aceptada
+def test_solicitud_aceptada_crea_marca():
+    from services.workera_parser import TIPO_C, checksum_solicitud, parse_email
+    from tests.fixtures.workera_html import email_bytes, html_solicitud
+    c = parse_email(email_bytes(html_solicitud(), "Solicitud de marcación aceptada"))
+    m = c.datos
+    assert c.tipo == TIPO_C and c.remitente_valido
+    assert (m.fecha, m.hora, m.tipo_marca_declarado, m.activa) == ("2026-11-10", "09:30:00", "Entrada", True)
+    assert m.checksum == checksum_solicitud("2026-11-10", "09:30:00", "entrada")
+    assert m.nombre_trabajador == "NOMBRE APELLIDO PRUEBA" and m.rut_trabajador == ""
+
+
+def test_solicitud_sin_asunto_se_reconoce_por_contenido():
+    from services.workera_parser import TIPO_C, parse_email
+    from tests.fixtures.workera_html import email_bytes, html_solicitud
+    c = parse_email(email_bytes(html_solicitud(tipo="Salida", fecha_hora="03/11/2026 18:05"), "Workera"))
+    assert c.tipo == TIPO_C and c.datos.hora == "18:05:00" and c.datos.tipo_marca_declarado == "Salida"
+
+
+def test_solicitud_rechazada_queda_inactiva():
+    from services.workera_parser import parse_email
+    from tests.fixtures.workera_html import email_bytes, html_solicitud
+    c = parse_email(email_bytes(html_solicitud(estado="Rechazado"), "Solicitud de marcación rechazada"))
+    assert c.datos.activa is False
+
+
+def test_solicitud_que_no_crea_marca_se_ignora():
+    from services.workera_parser import parse_email
+    from tests.fixtures.workera_html import email_bytes, html_solicitud
+    raw = email_bytes(html_solicitud(requerimiento="Eliminaci&oacute;n de marcaci&oacute;n"),
+                      "Solicitud de marcación aceptada")
+    assert parse_email(raw) is None

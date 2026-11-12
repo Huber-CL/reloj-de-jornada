@@ -228,6 +228,16 @@ Tablas HTML **Marcación** y **Trabajador**, filas etiqueta | valor:
   `(?:salida anticipada|adelanto) de (\d+) minutos` (`salida_anticipada`).
 - Workera **trunca** a minutos: una salida real 17:43:15 se informa como 103 min sobre 16:00.
 
+### Tipo C — "Solicitud de marcación aceptada" (RR.HH. registra una marca olvidada)
+- Tabla: `Requerimiento` (`Creación de marcación`), `Tipo de marcación solicitada` (Entrada/Salida),
+  `Fecha/hora marcación solicitada` (`10/11/2026 09:30:00`), `Estado` (`Aceptado`).
+- Se guarda como una marca más (`MarcacionWorkera`, `tipo_correo = "C"`): no trae hash ni RUT, así que
+  el checksum es `SOL` + sha1(fecha, hora, tipo) (reimportar no duplica) y no se filtra por RUT.
+  Estado distinto de «Aceptado» → marca inactiva. Requerimientos que no son «Creación» (modificación,
+  eliminación: formato aún desconocido) se ignoran. En Hoy se muestran como «RR.HH.: Entrada».
+- `sync.VERSION_LECTOR`: al subirlo, la primera sincronización olvida lo leído y relee los últimos 45
+  días (para recoger correos que una versión anterior ignoró). Es idempotente.
+
 ## Resolución Entrada/Salida (`attendance_resolver.resolver_dia`)
 
 El reloj físico a veces no deja cambiar el botón, así que llegan 2 "Entrada" o 2 "Salida" el

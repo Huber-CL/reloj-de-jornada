@@ -85,7 +85,9 @@ class HoyView:
         fila: list[ft.Control] = [
             ft.Column([ft.Text(w.fecha_larga(self.fecha), size=20, weight=ft.FontWeight.BOLD), self._lbl_reloj,
                        ft.Row(chips + [estado_sync], wrap=True, spacing=6)], spacing=4, expand=True)]
-        if fuente != "ninguna":
+        if fuente != "ninguna" and self.app.sincronizando:
+            fila.append(ft.Container(ft.ProgressRing(width=22, height=22, stroke_width=3), padding=13))
+        elif fuente != "ninguna":
             fila.append(ft.IconButton(ft.Icons.SYNC, tooltip="Sincronizar con Workera",
                                       on_click=lambda _: self.page.run_task(self.app.sincronizar)))
         return ft.Row(fila, vertical_alignment=ft.CrossAxisAlignment.START)
@@ -122,9 +124,10 @@ class HoyView:
                 ft.Row([ft.Icon(ft.Icons.HELP_OUTLINE, color=w.AMBAR), ft.Text(p.mensaje, expand=True)]),
                 ft.Row([
                     ft.FilledButton(p.etiqueta_boton, on_click=lambda _: self._accion(
-                        lambda: self.app.svc.mover_a_salida(self.fecha, p.checksum))),
+                        lambda: self.app.svc.mover_a_salida(self.fecha, p.checksum), "Listo: la marca quedó como salida.")),
                     ft.TextButton("Es turno de tarde", on_click=lambda _: self._accion(
-                        lambda: self.app.svc.marcar_como_ingreso(self.fecha, p.checksum))),
+                        lambda: self.app.svc.marcar_como_ingreso(self.fecha, p.checksum),
+                        "Listo: la marca quedó como ingreso (turno de tarde).")),
                 ], wrap=True),
             ]),
         )
@@ -212,10 +215,12 @@ class HoyView:
                                   on_click=lambda _: abrir_editor(self.app, self.fecha, self.app.refrescar))]
         if d.ingreso or d.salida:
             acciones.append(ft.TextButton("⇄ Invertir Entrada/Salida",
-                                          on_click=lambda _: self._accion(lambda: self.app.svc.invertir(self.fecha))))
+                                          on_click=lambda _: self._accion(lambda: self.app.svc.invertir(self.fecha),
+                                                                        "Invertí ingreso y salida.")))
         if d.cambioDe:
             acciones.append(ft.TextButton("Deshacer cambio de día", icon=ft.Icons.UNDO,
-                                          on_click=lambda _: self._accion(lambda: self.app.svc.deshacer_cambio(self.fecha))))
+                                          on_click=lambda _: self._accion(lambda: self.app.svc.deshacer_cambio(self.fecha),
+                                                                        "Cambio de día deshecho.")))
         controles.append(ft.Row(acciones, wrap=True))
         return w.tarjeta(*controles, titulo="Jornada de hoy", icono=ft.Icons.TIMER)
 
@@ -251,7 +256,8 @@ class HoyView:
             controles.append(w.chip(cc.badge, w.VERDE if cc.jornada_validada else w.AZUL, ft.Icons.VERIFIED
                                     if cc.jornada_validada else ft.Icons.INFO_OUTLINE))
         for a in res.asignaciones:
-            fila = [ft.Text(a.hora, weight=ft.FontWeight.BOLD), ft.Text(f"reloj: {a.tipo_declarado}", size=12),
+            origen = "RR.HH." if a.checksum.startswith("SOL") else "reloj"
+            fila = [ft.Text(a.hora, weight=ft.FontWeight.BOLD), ft.Text(f"{origen}: {a.tipo_declarado}", size=12),
                     w.chip(ROL_TEXTO.get(a.rol, a.rol), w.VERDE if a.rol in (INGRESO, SALIDA) else w.AMBAR)]
             if a.badge:
                 fila.append(w.chip(a.badge, w.AMBAR if a.inferido_por_secuencia else w.AZUL))
@@ -263,7 +269,7 @@ class HoyView:
             controles.append(ft.Row([
                 ft.Text(f"Autocompletar {nombre} {s.hora}", expand=True, size=13),
                 ft.TextButton("Aplicar", on_click=lambda _, campo=s.campo: self._accion(
-                    lambda: self.app.svc.aplicar_sugerencia(self.fecha, campo))),
+                    lambda: self.app.svc.aplicar_sugerencia(self.fecha, campo), f"{nombre.capitalize()} aplicado.")),
             ]))
             controles.append(ft.Text(s.motivo, size=11, color=ft.Colors.ON_SURFACE_VARIANT))
         for av in res.avisos:
@@ -272,7 +278,7 @@ class HoyView:
             controles.append(ft.Text("• " + AVISO_TEXTO.get(av, av), size=12, color=w.AMBAR))
         if self.app.db.get_overrides(self.fecha):
             controles.append(ft.TextButton("Deshacer mis ajustes", icon=ft.Icons.UNDO, on_click=lambda _: self._accion(
-                lambda: self.app.svc.deshacer_ajustes_workera(self.fecha))))
+                lambda: self.app.svc.deshacer_ajustes_workera(self.fecha), "Volví a la lectura automática de Workera.")))
         return w.tarjeta(*controles, titulo="Marcas Workera", icono=ft.Icons.FINGERPRINT)
 
     # ------------------------------------------------------------------ reloj
@@ -284,6 +290,7 @@ class HoyView:
             self.refrescar()
             self.page.update()
             return
+        reconstruir = False
         ahora = w.ahora_s()
         self._lbl_reloj.value = w.hora(ahora, self.seg)
         ing = st.day.ingreso
@@ -305,8 +312,18 @@ class HoyView:
         self._ticks += 1
         if self._ticks % 60 == 0:               # recalcular saldo, avisos y hora límite cada minuto
             self.refrescar()
-        if actualizar:
+            reconstruir = True
+        if not actualizar:
+            return
+        if reconstruir:
             self.page.update()
+            return
+        # Cada segundo solo cambian el reloj, el avance y la barra: se envían solo esos controles.
+        for c in (self._lbl_reloj, self._lbl_llevas, self._lbl_falta, self._barra):
+            try:
+                c.update()
+            except RuntimeError:            # control que no está en pantalla en este estado del día
+                pass
 
     def _revisar_aviso_salida(self, st: EstadoHoy, ahora: int) -> None:
         aviso, salida = st.aviso_salida_s, st.salida_estimada_s
@@ -336,11 +353,14 @@ class HoyView:
             ))
 
     # ------------------------------------------------------------------ acciones
-    def _accion(self, fn) -> None:
+    def _accion(self, fn, ok: str = "") -> None:
         try:
             fn()
         except ValueError as exc:
             w.snack(self.page, str(exc), w.ROJO)
+        else:
+            if ok:
+                w.snack(self.page, ok, w.VERDE)
         self.app.refrescar()
 
     def _marcar_ingreso(self, seg: int) -> None:

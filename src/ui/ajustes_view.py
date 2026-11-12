@@ -335,8 +335,7 @@ class AjustesView:
 
     def _resync_todo(self, _):
         def ok():
-            self.app.db.olvidar_uids()
-            self.app.db.set_meta("ultima_sync_fecha", None)
+            self.app.svc.sync.olvidar_lo_leido()
             self.page.run_task(self.app.sincronizar)
         w.confirmar(self.page, "Re-sincronizar todo",
                     "Se volverán a leer los correos de Workera de los últimos 45 días. Tus ajustes manuales se mantienen.",

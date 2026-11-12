@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS days (
 );
 CREATE TABLE IF NOT EXISTS workera_events (
     checksum TEXT PRIMARY KEY,
-    tipo_correo TEXT NOT NULL,          -- A (marcación) | B (alerta)
+    tipo_correo TEXT NOT NULL,          -- A (marcación) | B (alerta) | C (solicitud aceptada por RR.HH.)
     fecha TEXT NOT NULL,
     hora TEXT,
     tipo_declarado TEXT,
@@ -191,7 +191,7 @@ class Database:
         return self._x(
             "INSERT OR IGNORE INTO workera_events (checksum, tipo_correo, fecha, hora, tipo_declarado, "
             "estado, rut, payload, raw_text, message_uid, recibido_en) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (m.checksum, "A", m.fecha, m.hora, m.tipo_marca_declarado, m.estado, m.rut_trabajador,
+            (m.checksum, m.tipo_correo, m.fecha, m.hora, m.tipo_marca_declarado, m.estado, m.rut_trabajador,
              json.dumps(payload, ensure_ascii=False), m.raw_text, uid, _ahora()),
         ) == 1
 
@@ -215,7 +215,7 @@ class Database:
 
     def get_marcas(self, fecha) -> list[Marca]:
         filas = self._q("SELECT checksum, fecha, hora, tipo_declarado, estado FROM workera_events "
-                        "WHERE tipo_correo = 'A' AND fecha = ? ORDER BY hora", (to_date(fecha).isoformat(),))
+                        "WHERE tipo_correo IN ('A', 'C') AND fecha = ? ORDER BY hora", (to_date(fecha).isoformat(),))
         return [Marca(r["checksum"], r["fecha"], r["hora"], r["tipo_declarado"],
                       activa=not r["estado"] or r["estado"].lower() == "activo") for r in filas]
 

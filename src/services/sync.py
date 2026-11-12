@@ -17,6 +17,9 @@ from services.imap_client import WorkeraMailbox
 from services.workera_parser import AlertaWorkera, WorkeraParseError, parse_email
 
 DIAS_PRIMERA_SYNC = 45
+# Sube cuando el lector aprende un tipo de correo nuevo: la próxima sincronización vuelve a leer los
+# últimos DIAS_PRIMERA_SYNC días (correos que antes se ignoraron). 2 = «Solicitud de marcación aceptada».
+VERSION_LECTOR = "2"
 SOLAPE_DIAS = 3
 CUENTA_PUENTE = "puente-google"
 CARPETA_PUENTE = "gmail"
@@ -70,6 +73,17 @@ class SyncService:
         self.db = db
         self._mailbox_factory = mailbox_factory
 
+    def _releer_si_lector_nuevo(self) -> None:
+        if self.db.get_meta("version_lector") != VERSION_LECTOR:
+            self.olvidar_lo_leido()
+            self.db.set_meta("version_lector", VERSION_LECTOR)
+
+    def olvidar_lo_leido(self) -> None:
+        """La próxima sincronización relee los últimos días (es idempotente: no duplica marcas)."""
+        self.db.olvidar_uids()
+        self.db.set_meta("ultima_sync_fecha", None)
+        self.db.set_meta("ultima_sync_puente_fecha", None)
+
     @property
     def resolver_config(self) -> ResolverConfig:
         return ResolverConfig(**self.db.get_pref("resolver", {}))
@@ -81,6 +95,7 @@ class SyncService:
         if not cred.completas:
             raise ValueError("Configura tu Gmail y la contraseña de aplicación en Ajustes")
         hoy = hoy or date.today()
+        self._releer_si_lector_nuevo()
         if desde is None:
             ultima = self.db.get_meta("ultima_sync_fecha")
             desde = (date.fromisoformat(ultima) - timedelta(days=SOLAPE_DIAS) if ultima
@@ -104,6 +119,7 @@ class SyncService:
     async def sincronizar_puente(self, puente, rut: str, hoy: Optional[date] = None) -> ResultadoSync:
         """Igual que `sincronizar` pero los correos llegan del Puente Google en vez de IMAP."""
         hoy = hoy or date.today()
+        self._releer_si_lector_nuevo()
         ultima = self.db.get_meta("ultima_sync_puente_fecha")
         desde = date.fromisoformat(ultima) - timedelta(days=SOLAPE_DIAS) if ultima else hoy - timedelta(days=DIAS_PRIMERA_SYNC)
         desde_epoch = int(datetime.combine(desde, datetime.min.time()).timestamp())
